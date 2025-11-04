@@ -23,7 +23,7 @@ const server = http.createServer((req, res) => {
   res.end('Not Found');
 });
 server.listen(PORT, () => {
-  console.log(HTTP health server listening on port );
+  console.log(`HTTP health server listening on port ${port}`);
 });
 
 // --- Telegram bot startup ---
@@ -96,3 +96,4 @@ if (!token) {
   process.on('SIGINT', () => stop('SIGINT'));
   process.on('SIGTERM', () => stop('SIGTERM'));
 }
+
