@@ -1,0 +1,6 @@
+﻿# Build / node
+dist/
+node_modules/
+*.bak
+.env
+public/config.js
