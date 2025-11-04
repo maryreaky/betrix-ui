@@ -1,13 +1,67 @@
 /**
  * functions/webhook.js
- * Responsive Telegram webhook with emojis and quick UX touches.
- * - Shows typing action before generating reply
- * - Handles /start with emoji welcome
- * - Uses OpenAI for message generation for other texts
- * - Requires OPENAI_API_KEY, BOT_TOKEN, optional WEBHOOK_SECRET
+ * Adds:
+ * - per-chat rate limiter (token bucket)
+ * - ephemeral per-chat context buffer (last 2 msgs)
+ * - preserves existing OpenAI + Telegram flow
+ *
+ * NOTE: Ephemeral storage is in-memory and not persisted across cold starts.
+ * For production, replace with Redis/Upstash for persistence across instances.
  */
 
 const fetch = require('node-fetch');
+
+// In-memory stores (ephemeral)
+const tokenBuckets = new Map(); // chatId -> { tokens, lastRefill }
+const contexts = new Map();     // chatId -> [ {role, content}, ... ]
+
+// Rate limiter config
+const MAX_TOKENS = 2;           // burst capacity
+const REFILL_INTERVAL_MS = 30 * 1000; // refill 1 token every 30s
+const REFILL_AMOUNT = 1;
+
+const nowMs = () => Date.now();
+
+function takeToken(chatId) {
+  const key = String(chatId);
+  let bucket = tokenBuckets.get(key);
+  const now = nowMs();
+  if (!bucket) {
+    bucket = { tokens: MAX_TOKENS, lastRefill: now };
+    tokenBuckets.set(key, bucket);
+  }
+  // refill
+  const elapsed = now - bucket.lastRefill;
+  const refillCount = Math.floor(elapsed / REFILL_INTERVAL_MS) * REFILL_AMOUNT;
+  if (refillCount > 0) {
+    bucket.tokens = Math.min(MAX_TOKENS, bucket.tokens + refillCount);
+    bucket.lastRefill = bucket.lastRefill + Math.floor(elapsed / REFILL_INTERVAL_MS) * REFILL_INTERVAL_MS;
+  }
+  if (bucket.tokens > 0) {
+    bucket.tokens -= 1;
+    return true;
+  }
+  return false;
+}
+
+function pushContext(chatId, role, content) {
+  const key = String(chatId);
+  const buf = contexts.get(key) || [];
+  buf.push({ role, content });
+  // keep last 2 messages for context (system + latest user)
+  if (buf.length > 4) buf.splice(0, buf.length - 4);
+  contexts.set(key, buf);
+}
+
+function getContextMessages(chatId, userText) {
+  const key = String(chatId);
+  const buf = contexts.get(key) || [];
+  const system = { role: "system", content: "You are a concise assistant for BETRIX — friendly, emoji-savvy, no betting tips." };
+  const user = { role: "user", content: userText };
+  // include up to last 2 messages + current user message
+  const tail = buf.slice(-2);
+  return [system, ...tail, user];
+}
 
 const sendTelegram = async (token, method, payload) => {
   const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
@@ -46,33 +100,36 @@ exports.handler = async (event) => {
       return { statusCode: 200, body: "OK" };
     }
 
-    // Quick command handling (immediate user feedback)
+    // quick command
     if (text && text.startsWith('/start')) {
       const welcome = "Welcome to BETRIX ⚡️\nI can answer questions, summarise matches, and chat — try sending a message now! 🤖";
       await sendTelegram(token, "sendMessage", { chat_id: chatId, text: welcome, reply_to_message_id: messageId });
+      // record context
+      pushContext(chatId, "assistant", welcome);
       console.log("Handled /start");
       return { statusCode: 200, body: "OK" };
     }
 
-    // Show typing action to improve perceived responsiveness
-    try {
-      await sendTelegram(token, "sendChatAction", { chat_id: chatId, action: "typing" });
-    } catch (e) {
-      console.error("sendChatAction failed", e);
+    // Rate limiting per-chat
+    if (!takeToken(chatId)) {
+      const slowMsg = "You're sending messages too fast. Please wait a moment ⏳";
+      await sendTelegram(token, "sendMessage", { chat_id: chatId, text: slowMsg, reply_to_message_id: messageId });
+      console.log("Rate limited chat", chatId);
+      return { statusCode: 200, body: "OK" };
     }
 
-    // Safety: short circuit very long messages
+    // Typing indicator
+    try { await sendTelegram(token, "sendChatAction", { chat_id: chatId, action: "typing" }); } catch(e) { console.error("sendChatAction failed", e); }
+
+    // Safety: cap message length
     if (text && text.length > 2000) {
-      const msg = "Whoa — that message is too long. Please send a shorter question (max 2000 chars) ✂️";
+      const msg = "Message too long. Send something shorter (max 2000 chars) ✂️";
       await sendTelegram(token, "sendMessage", { chat_id: chatId, text: msg, reply_to_message_id: messageId });
       return { statusCode: 200, body: "OK" };
     }
 
-    // Build OpenAI messages
-    const messages = [
-      { role: "system", content: "You are a concise assistant for BETRIX — friendly, emoji-savvy, no betting tips, concise replies." },
-      { role: "user", content: text || "User sent empty message" }
-    ];
+    // Build OpenAI messages using context
+    const messages = getContextMessages(chatId, text || "");
 
     if (!process.env.OPENAI_API_KEY) {
       console.error("OPENAI_API_KEY missing");
@@ -92,7 +149,7 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           model: "gpt-4o-mini",
           messages,
-          max_tokens: 250,
+          max_tokens: 220,
           temperature: 0.5
         })
       });
@@ -108,11 +165,13 @@ exports.handler = async (event) => {
       console.error("OpenAI call failed", err);
     }
 
-    // Add emoji polish and length guard
+    // Persist assistant + user messages into ephemeral context
+    pushContext(chatId, "user", text || "");
+    pushContext(chatId, "assistant", aiReply);
+
     if (aiReply.length > 1000) aiReply = aiReply.slice(0, 1000) + "...";
     const polished = `💬 ${aiReply}\n\n🔎 Need more? Ask follow-up.`;
 
-    // Send reply
     const telegramRes = await sendTelegram(token, "sendMessage", {
       chat_id: chatId,
       text: polished,
