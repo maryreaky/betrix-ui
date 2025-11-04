@@ -4,3 +4,10 @@ node_modules/
 *.bak
 .env
 public/config.js
+.env.*
+*.env
+secrets.json
+*.secrets*
+config.local.*
+npm-debug.log
+package-lock.json
