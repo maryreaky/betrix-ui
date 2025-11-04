@@ -1,12 +1,15 @@
 {
-    "private":  true,
-    "engines":  {
-                    "node":  "\u003e=18 \u003c19"
-                },
-    "name":  "betrix-ui",
-    "version":  "0.0.0",
-    "scripts":  {
-                    "prebuild":  "node -v || true",
-                    "build":  "node ./scripts/build-static.js"
-                }
+    "private": true,
+    "engines": {
+        "node": ">=18 <19"
+    },
+    "name": "betrix-ui",
+    "version": "0.0.0",
+    "scripts": {
+        "prebuild": "node -v || true",
+        "build": "node ./scripts/build-static.js"
+    },
+    "dependencies": {
+        "node-fetch": "^2.7.0"
+    }
 }

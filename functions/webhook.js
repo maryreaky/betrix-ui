@@ -1,14 +1,13 @@
 /**
  * functions/webhook.js
- * Synchronous-await version: validates optional secret, calls OpenAI, then posts reply to Telegram.
- * Requires OPENAI_API_KEY, BOT_TOKEN, optional WEBHOOK_SECRET in Netlify environment variables.
+ * Uses node-fetch (CommonJS) via require to ensure Netlify can load it.
+ * Requires OPENAI_API_KEY, BOT_TOKEN, optional WEBHOOK_SECRET.
  */
 
-const fetch = (...args) => import('node-fetch').then(m => m.default(...args));
+const fetch = require('node-fetch');
 
 exports.handler = async (event) => {
   try {
-    // Validate secret if present
     const url = require("url");
     const qs = url.parse(event.rawUrl || event.path || "", true).query;
     if (process.env.WEBHOOK_SECRET && qs.secret !== process.env.WEBHOOK_SECRET) {
@@ -16,7 +15,6 @@ exports.handler = async (event) => {
       return { statusCode: 403, body: "Forbidden" };
     }
 
-    // Parse update
     let update = {};
     try { update = JSON.parse(event.body || "{}"); } catch (e) { console.error("json parse error", e); }
     console.log("incoming update", JSON.stringify(update).slice(0, 2000));
@@ -28,13 +26,11 @@ exports.handler = async (event) => {
       return { statusCode: 200, body: "OK" };
     }
 
-    // Build messages for OpenAI
     const messages = [
       { role: "system", content: "You are a helpful assistant for the BETRIX sports-media platform. Keep replies concise and avoid betting advice." },
       { role: "user", content: text }
     ];
 
-    // Call OpenAI
     if (!process.env.OPENAI_API_KEY) {
       console.error("OPENAI_API_KEY missing");
       return { statusCode: 200, body: "OK" };
@@ -63,7 +59,6 @@ exports.handler = async (event) => {
     const openaiJson = await openaiRes.json();
     const aiReply = openaiJson?.choices?.[0]?.message?.content?.trim() || "Sorry, I couldn't generate a reply.";
 
-    // Send reply to Telegram
     if (!process.env.BOT_TOKEN) {
       console.error("BOT_TOKEN missing");
       return { statusCode: 200, body: "OK" };
