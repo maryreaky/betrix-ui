@@ -7,8 +7,10 @@
     "version":  "0.0.0",
     "scripts":  {
                     "prebuild":  "node -v || true",
+                    "start":  "node server/webhook.js",
+                    "start:webhook":  "node server/webhook.js",
                     "build":  "node ./scripts/build-static.js",
-                    "start":  "node server/webhook.js"
+                    "start:polling":  "ENABLE_POLLING=true node betrix-polling.js"
                 },
     "dependencies":  {
                          "dotenv":  "^17.2.3",
