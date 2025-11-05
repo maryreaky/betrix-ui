@@ -1,18 +1,18 @@
-{
-  "private": true,
-  "engines": {
-    "node": ">=18 <19"
-  },
-  "name": "betrix-ui",
-  "version": "0.0.0",
-  "scripts": {
-    "prebuild": "node -v || true",
-    "build": "node ./scripts/build-static.js",
-    "start": "node betrix-polling.js"
-  },
-  "dependencies": {
-    "dotenv": "^17.2.3",
-    "node-fetch": "^2.7.0",
-    "node-telegram-bot-api": "^0.66.0"
-  }
+﻿{
+    "private":  true,
+    "engines":  {
+                    "node":  "\u003e=18 \u003c19"
+                },
+    "name":  "betrix-ui",
+    "version":  "0.0.0",
+    "scripts":  {
+                    "prebuild":  "node -v || true",
+                    "build":  "node ./scripts/build-static.js",
+                    "start":  "node server/webhook.js"
+                },
+    "dependencies":  {
+                         "dotenv":  "^17.2.3",
+                         "node-fetch":  "^2.7.0",
+                         "node-telegram-bot-api":  "^0.66.0"
+                     }
 }
