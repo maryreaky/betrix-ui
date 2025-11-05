@@ -48,31 +48,175 @@ server.listen(PORT, '0.0.0.0', () => console.log('Server listening on 0.0.0.0:' 
 
 
 ' + $marker + '
-// Diagnostic webhook handler appended for troubleshooting
+// Diagnostic webhook handler replaced with production bot architecture
+// BOT ARCHITECTURE:
+//  - Immediate ACK to Telegram
+//  - Lightweight command router: /start, /menu, /vision, /help, /about
+//  - Vision command scaffold: `vision` subcommands: upload, summary, classify (placeholders for integration)
+//  - Simple in-memory user store placeholder (replace with DB or KV for production)
+//  - Background processing safe pattern with verbose logs for telemetry
+//  - Reads BOT_TOKEN and optional WEBHOOK_SECRET from env
 app.post('/telegram/webhook', express.json(), (req, res) => {
   try {
-    console.log('webhook received', JSON.stringify({ from: req.body?.message?.from?.id, text: req.body?.message?.text }));
-    // Acknowledge immediately to Telegram
+    // Optional: validate Telegram secret header
+    const expectedSecret = process.env.WEBHOOK_SECRET;
+    if (expectedSecret) {
+      const got = req.header('x-telegram-bot-api-secret-token');
+      if (!got || got !== expectedSecret) {
+        console.warn('telegram secret mismatch', { got });
+        return res.status(200).send('ok'); // ACK but ignore payload
+      }
+    }
+
+    // ACK immediately to prevent retries
     res.status(200).send('ok');
-    // Background processing: attempt a sendMessage and log full response
+
+    // ---------- Lightweight user store (placeholder) ----------
+    // Replace this with a persistent store (Redis, Postgres, KV) for production.
+    global.__BETRIX_USERS__ = global.__BETRIX_USERS__ || new Map();
+
+    // ---------- Utils ----------
+    const token = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
+    const safeLog = (...a) => { console.log(...a); };
+
+    // ---------- Background worker for processing updates ----------
     setImmediate(async () => {
       try {
-        const chatId = req.body?.message?.chat?.id;
-        if (!chatId) {
-          console.log('no chat id in update; skipping send');
+        const update = req.body;
+        safeLog('process update', JSON.stringify({ type: update?.message ? 'message' : 'other', from: update?.message?.from?.id }));
+
+        // Support only message updates for now
+        const msg = update?.message;
+        if (!msg) {
+          safeLog('non-message update; ignoring');
           return;
         }
-        const token = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || process.env.BOTTOKEN;
-        if (!token) {
-          console.error('BOT_TOKEN missing in env');
+
+        const chatId = msg.chat?.id;
+        const fromId = msg.from?.id;
+        if (!chatId || !fromId) {
+          safeLog('missing chatId/fromId; skipping');
           return;
         }
-        const body = { chat_id: chatId, text: 'Auto-diagnostic reply from webhook at ' + new Date().toISOString() };
-        const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
+
+        // Initialize user record
+        if (!global.__BETRIX_USERS__.has(fromId)) {
+          global.__BETRIX_USERS__.set(fromId, { chatId, createdAt: Date.now(), state: 'idle' });
+          safeLog('created user', fromId);
+        }
+        const user = global.__BETRIX_USERS__.get(fromId);
+
+        // Normalize incoming text
+        const text = (msg.text || '').trim();
+
+        // ---------- Command router ----------
+        const sendReply = async (chat_id, textBody, extra) => {
+          if (!token) { safeLog('BOT_TOKEN missing in env'); return; }
+          try {
+            const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(Object.assign({ chat_id, text: textBody }, extra || {}))
+            });
+            let json;
+            try { json = await resp.json(); } catch(e) { json = { parseError: true, raw: await resp.text() } }
+            safeLog('tg sendMessage', resp.status, JSON.stringify(json));
+            return json;
+          } catch (err) {
+            safeLog('tg outgoing error', err && err.stack ? err.stack : err);
+            return null;
+          }
+        };
+
+        // Menu keyboard helper
+        const mainMenuKeyboard = {
+          reply_markup: {
+            keyboard: [
+              [{ text: '/menu' }, { text: '/vision' }],
+              [{ text: '/help' }, { text: '/about' }]
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: false
+          }
+        };
+
+        // Vision commands: scaffolded flows
+        const handleVisionCommand = async (chat_id, arg) => {
+          // arg can be 'upload', 'summary', 'classify' or undefined -> show options
+          if (!arg || arg === '') {
+            return sendReply(chat_id, 'Vision menu: send /vision upload to upload an image; /vision summary or /vision classify to run AI jobs', mainMenuKeyboard);
+          }
+          if (arg === 'upload') {
+            // In production: expect a file_id from photo messages, download, send to vision model
+            user.state = 'awaiting_vision_upload';
+            return sendReply(chat_id, 'Send an image now and I will analyze it for you.');
+          }
+          // placeholder responses for summary/classify
+          if (arg === 'summary') return sendReply(chat_id, 'Vision summary placeholder — integrate your Vision API here.');
+          if (arg === 'classify') return sendReply(chat_id, 'Vision classify placeholder — integrate your Vision API here.');
+          return sendReply(chat_id, `Unknown vision subcommand: ${arg}`);
+        };
+
+        // Parse slash commands and natural text
+        if (text.startsWith('/')) {
+          // Split command and arg: /vision upload
+          const parts = text.split(/\s+/);
+          const cmd = parts[0].toLowerCase();
+          const arg = parts[1] ? parts.slice(1).join(' ') : '';
+
+          switch (cmd) {
+            case '/start':
+              user.state = 'idle';
+              await sendReply(chatId, 'Welcome to BETRIX — choose an option from the menu or type /help', mainMenuKeyboard);
+              break;
+            case '/menu':
+              await sendReply(chatId, 'Main menu', mainMenuKeyboard);
+              break;
+            case '/help':
+              await sendReply(chatId, 'Commands: /start, /menu, /vision [upload|summary|classify], /help, /about', mainMenuKeyboard);
+              break;
+            case '/about':
+              await sendReply(chatId, 'BETRIX bot — secure, fast, and experimental vision features', mainMenuKeyboard);
+              break;
+            case '/vision':
+              await handleVisionCommand(chatId, arg.toLowerCase());
+              break;
+            default:
+              await sendReply(chatId, `Unknown command: ${cmd}. Type /help for commands.`, mainMenuKeyboard);
+          }
+          return;
+        }
+
+        // ---------- Non-command flows (state machine) ----------
+        if (user.state === 'awaiting_vision_upload') {
+          // User should have sent a photo; placeholder: look for photo array and take file_id
+          const photos = msg.photo;
+          if (photos && photos.length) {
+            const fileId = photos[photos.length - 1].file_id;
+            user.state = 'idle';
+            // In production: call Telegram getFile, download, process with Vision model
+            await sendReply(chatId, `Received image (file_id: ${fileId}). Processing placeholder...`);
+            // simulate a result
+            await sendReply(chatId, 'Vision result: [placeholder analysis]. Replace with your vision model call.');
+          } else {
+            await sendReply(chatId, 'No image detected. Please send a photo now or type /menu', mainMenuKeyboard);
+          }
+          return;
+        }
+
+        // Default echo / fallback
+        await sendReply(chatId, `Echo: ${text || '[no text]'} — try /menu or /help`, mainMenuKeyboard);
+
+      } catch (err) {
+        console.error('background handler error', err && err.stack ? err.stack : err);
+      }
+    });
+
+  } catch (err) {
+    console.error('webhook top-level error', err && err.stack ? err.stack : err);
+    try { res.status(200).send('ok') } catch {}
+  }
+});
         let json;
         try { json = await resp.json(); } catch(e) { json = { parseError: true, text: await resp.text() }; }
         console.log('tg sendMessage', resp.status, JSON.stringify(json));
@@ -85,4 +229,5 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
     try { res.status(200).send('ok') } catch {}
   }
 });
+
 
