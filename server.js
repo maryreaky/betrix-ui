@@ -44,3 +44,44 @@ const server = http.createServer(app);
 server.headersTimeout = 60000;
 server.requestTimeout = 60000;
 server.listen(PORT, '0.0.0.0', () => console.log('Server listening on 0.0.0.0:' + PORT));
+
+
+
+' + $marker + '
+// Diagnostic webhook handler appended for troubleshooting
+app.post('/telegram/webhook', express.json(), (req, res) => {
+  try {
+    console.log('webhook received', JSON.stringify({ from: req.body?.message?.from?.id, text: req.body?.message?.text }));
+    // Acknowledge immediately to Telegram
+    res.status(200).send('ok');
+    // Background processing: attempt a sendMessage and log full response
+    setImmediate(async () => {
+      try {
+        const chatId = req.body?.message?.chat?.id;
+        if (!chatId) {
+          console.log('no chat id in update; skipping send');
+          return;
+        }
+        const token = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || process.env.BOTTOKEN;
+        if (!token) {
+          console.error('BOT_TOKEN missing in env');
+          return;
+        }
+        const body = { chat_id: chatId, text: 'Auto-diagnostic reply from webhook at ' + new Date().toISOString() };
+        const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        let json;
+        try { json = await resp.json(); } catch(e) { json = { parseError: true, text: await resp.text() }; }
+        console.log('tg sendMessage', resp.status, JSON.stringify(json));
+      } catch (err) {
+        console.error('tg outgoing error', err && err.stack ? err.stack : err);
+      }
+    });
+  } catch (err) {
+    console.error('webhook handler top error', err && err.stack ? err.stack : err);
+    try { res.status(200).send('ok') } catch {}
+  }
+});
