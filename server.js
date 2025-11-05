@@ -1,46 +1,33 @@
 ﻿const express = require('express');
+const http = require('http');
 const path = require('path');
-const bodyParser = require('body-parser');
-const crypto = require('crypto');
 const fs = require('fs');
 
 const app = express();
-app.use(bodyParser.json());
 
-// safe compare
-function safeEqual(a, b) {
-  try {
-    if (!a || !b) return false;
-    const A = Buffer.from(String(a));
-    const B = Buffer.from(String(b));
-    if (A.length !== B.length) return false;
-    return crypto.timingSafeEqual(A, B);
-  } catch (e) {
-    return false;
-  }
-}
+// Very small logger for first 60s to capture probes
+let captureLogsUntil = Date.now() + 60000;
+function log(...args) { if (Date.now() < captureLogsUntil) console.log(...args); }
 
-const WEBHOOK_SECRET = (process.env.WEBHOOK_SECRET || '').trim();
+// Minimal routes registered first
+app.get('/_health', (req, res) => res.status(200).send('ok'));
+app.head('/_health', (req, res) => res.status(200).end());
+app.get('/', (req, res) => res.status(200).send('ok'));
+app.head('/', (req, res) => res.status(200).end());
 
-// Webhook route (explicit, deterministic)
-app.post('/telegram/webhook', (req, res) => {
-  const header = (req.headers['x-telegram-bot-api-secret-token'] || '').trim();
-  const qsecret = (req.query && req.query.secret) ? String(req.query.secret).trim() : '';
-  const incoming = header || qsecret;
-  if (!safeEqual(incoming, WEBHOOK_SECRET)) {
-    console.warn('Webhook secret mismatch or missing header');
-    return res.status(401).send('invalid secret');
-  }
-  console.log('Received Telegram update');
-  // minimal ack
-  return res.status(200).send('ok');
+// Simple request logger to capture probe hits
+app.use((req, res, next) => {
+  log('REQ', req.method, req.url, 'headers:', JSON.stringify(req.headers));
+  next();
 });
 
-// Deterministic health and root endpoints
-app.get('/_health', (req, res) => res.status(200).send('ok'));
-app.get('/', (req, res) => res.status(200).send('ok'));
+// Example webhook route (safe, optional)
+app.post('/telegram/webhook', express.json(), (req, res) => {
+  log('Webhook hit');
+  res.status(200).send('ok');
+});
 
-// Serve static UI from dist after API routes
+// Serve static UI after API routes
 const staticDir = path.join(__dirname, 'dist');
 if (fs.existsSync(staticDir)) {
   app.use(express.static(staticDir, { index: false }));
@@ -54,8 +41,22 @@ if (fs.existsSync(staticDir)) {
   });
 }
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log('Server listening on port ' + PORT);
-  console.log('WEBHOOK_SECRET set:', Boolean(process.env.WEBHOOK_SECRET));
+// Global error handlers to prevent silent exits
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION', err && err.stack ? err.stack : err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION', reason);
+});
+
+// Create HTTP server to allow configuring server timeouts
+const PORT = parseInt(process.env.PORT || '10000', 10);
+const server = http.createServer(app);
+
+// Increase timeouts so Render's probe has time
+server.headersTimeout = 60000;
+server.requestTimeout = 60000;
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log('Server listening on 0.0.0.0:' + PORT);
 });
