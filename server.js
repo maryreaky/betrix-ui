@@ -4,18 +4,24 @@ const path = require('path');
 const fs = require('fs');
 const app = express();
 
-app.get('/_health', (req, res) => res.status(200).send('ok'));
-app.head('/_health', (req, res) => res.status(200).end());
-app.get('/', (req, res) => res.status(200).send('ok'));
-app.head('/', (req, res) => res.status(200).end());
+// Deterministic health endpoints (both aliases)
+app.get('/_health', (req,res) => res.status(200).send('ok'));
+app.head('/_health', (req,res) => res.status(200).end());
+app.get('/health', (req,res) => res.status(200).send('ok'));
+app.head('/health', (req,res) => res.status(200).end());
 
+app.get('/', (req,res) => res.status(200).send('ok'));
+
+// Lightweight request logger for the first minute to capture probes
 let captureUntil = Date.now() + 60000;
 function log(...a) { if (Date.now() < captureUntil) console.log(...a); }
-app.use((req,res,next) => { log('REQ', req.method, req.url); next(); });
+app.use((req,res,next) => { log('REQ', req.method, req.url, 'headers:', JSON.stringify(req.headers)); next(); });
 
-app.post('/telegram/webhook', express.json(), (req,res) => { log('webhook hit'); res.status(200).send('ok'); });
+// Webhook endpoint (safe placeholder)
+app.post('/telegram/webhook', express.json(), (req,res) => { log('webhook hit'); return res.status(200).send('ok'); });
 
-const staticDir = path.join(__dirname,'dist');
+// Serve static after API
+const staticDir = path.join(__dirname, 'dist');
 if (fs.existsSync(staticDir)) {
   app.use(express.static(staticDir, { index: false }));
   app.get('*', (req,res,next) => {
@@ -28,10 +34,12 @@ if (fs.existsSync(staticDir)) {
   });
 }
 
-process.on('uncaughtException', e => console.error('UNCAUGHT', e && e.stack ? e.stack : e));
-process.on('unhandledRejection', r => console.error('UNHANDLED REJECTION', r));
+// Global handlers to keep logs on crash
+process.on('uncaughtException', (e) => console.error('UNCAUGHT', e && e.stack ? e.stack : e));
+process.on('unhandledRejection', (r) => console.error('UNHANDLED REJECTION', r));
 
-const PORT = parseInt(process.env.PORT || '10000',10);
+// Bind to PORT on 0.0.0.0
+const PORT = parseInt(process.env.PORT || '10000', 10);
 const server = http.createServer(app);
 server.headersTimeout = 60000;
 server.requestTimeout = 60000;
