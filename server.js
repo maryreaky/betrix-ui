@@ -18,7 +18,7 @@ function log(...a) { if (Date.now() < captureUntil) console.log(...a); }
 app.use((req,res,next) => { log('REQ', req.method, req.url, 'headers:', JSON.stringify(req.headers)); next(); });
 
 // Webhook endpoint (safe placeholder)
-app.post('/telegram/webhook', express.json(), (req,res) => { log('webhook hit'); return res.status(200).send('ok'); });
+
 
 // Serve static after API
 const staticDir = path.join(__dirname, 'dist');
@@ -85,3 +85,4 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
     try { res.status(200).send('ok') } catch {}
   }
 });
+
