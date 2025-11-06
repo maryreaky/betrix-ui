@@ -16,15 +16,17 @@ app.get("/health", (req, res) => res.json({ ok: true, ts: Date.now() }));
 // ✅ Root probe
 app.get("/__probe", (req, res) => res.json({ ok: true, probe: "root", ts: Date.now() }));
 
-// ✅ Mount webhook routers
+// ✅ Mount webhook router (factory export)
 try {
-  const webhookRouter = require("./server/routes/webhook");
+  const webhookRouterFactory = require("./server/routes/webhook");
+  const webhookRouter = webhookRouterFactory({});
   app.use("/webhook", webhookRouter);
   console.log("✅ Mounted /webhook");
 } catch (e) {
   console.error("❌ Failed to mount /webhook", e.message);
 }
 
+// ✅ Mount webhook-AI router (direct export)
 try {
   const webhookAiRouter = require("./server/routes/webhook-ai");
   app.use("/webhook-ai", webhookAiRouter);
