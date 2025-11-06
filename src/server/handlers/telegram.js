@@ -1,22 +1,22 @@
-﻿const { fetch } = require("undici");
-async function sendReply(token, chat_id, text) {
-  const url = `https://api.telegram.org/bot${token}/sendMessage`;
-  const body = JSON.stringify({ chat_id, text });
-  const resp = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
-  const txt = await resp.text().catch(e => "" + e);
-  let json; try { json = JSON.parse(txt); } catch (e) { json = { parseError:true, text: txt }; }
-  console.log({ status: resp.status, result: json }, "tg sendMessage");
-  return json;
-}
-function extractChatId(update) {
-  if (update.message?.chat?.id) return update.message.chat.id;
-  if (update.callback_query?.message?.chat?.id) return update.callback_query.message.chat.id;
-  return null;
-}
-async function handleTelegram(update, cfg) {
-  const chatId = extractChatId(update);
-  if (!chatId) return;
-  const text = update.message?.text?.trim() || "";
-  await sendReply(cfg.BOT_TOKEN, chatId, text === "/ping" ? "pong" : "I received: " + text);
-}
-module.exports = { handleTelegram, sendReply };
+﻿const { sendText } = require("../utils/send");
+
+exports.handleTelegram = async (update, ctx) => {
+  const message = update.message?.text?.trim();
+  const chatId = update.message?.chat?.id;
+  if (!message || !chatId) return;
+
+  const lower = message.toLowerCase();
+
+  if (lower === "/start") return sendText(chatId, `👋 Welcome to BETRIX — the future of sports, odds, and memes. Type /help to explore.`);
+  if (lower === "/help") return sendText(chatId, `📜 Commands:\n/start\n/vip\n/odds\n/fixtures\n/live\n/refer\n/signup\n/meme\n/media\n/help`);
+  if (lower === "/vip") return require("./vip").handle(chatId);
+  if (lower === "/odds") return require("./odds").handle(chatId);
+  if (lower === "/fixtures") return require("./fixtures").handle(chatId);
+  if (lower === "/live") return require("./live").handle(chatId);
+  if (lower === "/refer") return require("./refer").handle(chatId);
+  if (lower === "/signup") return require("./signup").handle(chatId);
+  if (lower === "/meme") return require("./meme").handle(chatId);
+  if (lower === "/media") return require("./media").handle(chatId);
+
+  return sendText(chatId, `🤖 Unknown command: ${message}\nType /help to see available options.`);
+};
