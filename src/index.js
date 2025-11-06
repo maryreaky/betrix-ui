@@ -22,7 +22,7 @@ app.get("/admin/health", (req, res) => res.json({ ok: true, ts: Date.now() }));
 app.head("/admin/health", (req, res) => res.status(200).end());
 
 const port = Number(process.env.PORT) || 10000;
-app.listen(port, () => console.log("BETRIX server listening", port));
+app.listen(port, "0.0.0.0") => console.log("BETRIX server listening", port));
 
 console.log("Env check:", {
   hasBotToken: !!process.env.BOT_TOKEN,
@@ -30,3 +30,4 @@ console.log("Env check:", {
 });
 
 module.exports = app;
+
