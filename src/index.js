@@ -2,23 +2,28 @@
 const app = express();
 app.use(express.json());
 
-// Minimal guaranteed routes
-app.get("/admin/health", (req, res) => {
-  console.log("MINIMAL: HEALTH", req.method, req.originalUrl || req.url);
-  return res.json({ ok: true, ts: Date.now(), envPort: process.env.PORT || null });
+// Log every request
+app.use((req, res, next) => {
+  console.log("REQ", req.method, req.originalUrl, { host: req.headers.host, "content-type": req.headers["content-type"], "content-length": req.headers["content-length"] });
+  next();
 });
 
+// Accept all health variants
+app.all("/admin/health", (req, res) => res.json({ ok: true, ts: Date.now(), path: req.path }));
+app.all("/health", (req, res) => res.json({ ok: true, ts: Date.now(), path: req.path }));
+
+// Accept webhook POST
 app.post("/webhook/telegram", (req, res) => {
-  console.log("MINIMAL: WEBHOOK", req.method, req.originalUrl || req.url, "body:", JSON.stringify(req.body || {}));
-  return res.json({ ok: true, received: true, ts: Date.now() });
+  console.log("WEBHOOK", req.body);
+  res.json({ ok: true, received: true, ts: Date.now() });
 });
 
-// Fallback 404 handler for visibility
+// Fallback
 app.use((req, res) => {
-  console.log("MINIMAL: FALLBACK 404", req.method, req.originalUrl || req.url);
+  console.log("404", req.method, req.originalUrl);
   res.status(404).send("Not Found");
 });
 
 const port = Number(process.env.PORT) || 10000;
-app.listen(port, "0.0.0.0", () => console.log("MINIMAL server listening", port));
+app.listen(port, "0.0.0.0", () => console.log("HARDENED server listening", port));
 module.exports = app;
