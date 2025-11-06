@@ -1,5 +1,7 @@
 ﻿const express = require("express");
 const app = express();
+
+app.use('/admin', require('./src/server/routes/admin'));
 app.use('/admin', adminRouter);
 app.use(express.json());
 
@@ -32,5 +34,7 @@ app.use((req, res) => res.status(404).send("Not Found"));
 
 const port = Number(process.env.PORT) || 10000;
 app.listen(port, "0.0.0.0", () => console.log("BETRIX server listening", port));
+app.get('/__probe', (req,res)=>res.json({ok:true,ts:Date.now()}));
 module.exports = app;
+
 
