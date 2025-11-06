@@ -24,7 +24,7 @@ try {
 
 // Mount admin router safely
 try {
-  const adminRouter = require("./src/server/routes/admin");
+  const adminRouter = require("./server/routes/admin");
   if (adminRouter) app.use("/admin", adminRouter);
 } catch (e) {
   console.error("Admin router load failed (will continue):", e.message);
