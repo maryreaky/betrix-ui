@@ -1,40 +1,46 @@
-﻿const express = require("express");
-const app = express();
+﻿/**
+ * Minimal safe bootstrap for BETRIX
+ * Replaces src/index.js temporarily to ensure admin router mounts before app starts.
+ * Backup of original saved as src/index.js.bak.TIMESTAMP
+ */
 
-app.use('/admin', require('./src/server/routes/admin'));
-app.use('/admin', adminRouter);
-app.use(express.json());
+const express = require("express");
+let app;
 
-app.use((req, res, next) => {
-  console.log("REQ", req.method, req.originalUrl, {
-    host: req.headers.host,
-    "content-type": req.headers["content-type"],
-    "content-length": req.headers["content-length"]
-  });
-  next();
-});
-
-const { handleTelegram } = require("./server/handlers/telegram");
-const adminRouter = require('./src/server/routes/admin');
-
-app.post("/webhook/telegram", async (req, res) => {
-  try {
-    console.log("Webhook payload:", req.body);
-    await handleTelegram(req.body || {}, { BOT_TOKEN: process.env.BOT_TOKEN });
-    return res.json({ ok: true, ts: Date.now() });
-  } catch (e) {
-    console.error("Webhook error:", e);
-    return res.status(500).json({ ok: false, error: String(e) });
+// Try to load existing app if src/server/app.js or src/server/app is present and exports an Express app
+try {
+  const existing = require("./src/server/app");
+  if (existing && typeof existing === "function" && existing.name === "app") {
+    app = existing;
+  } else if (existing && existing.listen && typeof existing.listen === "function") {
+    app = existing;
+  } else {
+    app = express();
   }
-});
+} catch (e) {
+  // fallback to a fresh express app
+  app = express();
+}
 
-app.get("/admin/health", (req, res) => res.json({ ok: true, ts: Date.now() }));
-app.get("/health", (req, res) => res.json({ ok: true, ts: Date.now() }));
-app.use((req, res) => res.status(404).send("Not Found"));
+// Mount admin router safely
+try {
+  const adminRouter = require("./src/server/routes/admin");
+  if (adminRouter) app.use("/admin", adminRouter);
+} catch (e) {
+  console.error("Admin router load failed (will continue):", e.message);
+}
 
-const port = Number(process.env.PORT) || 10000;
-app.listen(port, "0.0.0.0", () => console.log("BETRIX server listening", port));
-app.get('/__probe', (req,res)=>res.json({ok:true,ts:Date.now()}));
+// Lightweight health probe
+app.get("/__probe", (req, res) => res.json({ ok: true, ts: Date.now() }));
+
+// If existing app already started listening elsewhere, do not double-listen.
+// Otherwise start the server on PORT or 10000.
+if (!app._is_listening) {
+  const PORT = process.env.PORT || 10000;
+  app.listen(PORT, "0.0.0.0", () => {
+    app._is_listening = true;
+    console.log("BETRIX server listening", PORT);
+  });
+}
+
 module.exports = app;
-
-
