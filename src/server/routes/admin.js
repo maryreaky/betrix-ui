@@ -2,21 +2,21 @@
 const axios = require("axios");
 const router = express.Router();
 
+console.log("✅ Admin router loaded");
+
 router.get("/env", (req, res) => {
-  const openai_present = !!process.env.OPENAI_API_KEY;
-  const bot_present = !!process.env.BOT_TOKEN;
+  console.log("🔍 /admin/env hit");
   res.json({
     ok: true,
-    openai_present,
-    bot_token_present: bot_present,
-    note: "Values are not returned for security. If either is false, inject in Render env and redeploy."
+    openai_present: !!process.env.OPENAI_API_KEY,
+    bot_token_present: !!process.env.BOT_TOKEN,
+    note: "Values not returned for security"
   });
 });
 
 router.get("/test-openai", async (req, res) => {
-  if (!process.env.OPENAI_API_KEY) {
-    return res.status(200).json({ ok: false, status: "missing_env", message: "OPENAI_API_KEY missing" });
-  }
+  console.log("🔍 /admin/test-openai hit");
+  if (!process.env.OPENAI_API_KEY) return res.status(200).json({ ok: false, status: "missing_env" });
   try {
     const r = await axios.get("https://api.openai.com/v1/models", {
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
