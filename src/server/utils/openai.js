@@ -18,8 +18,20 @@ const ask = async (prompt, system) => {
   return res.data.choices[0].message.content;
 };
 
-exports.askGeneral = async (prompt) =>
-  ask(prompt, "You are BETRIX, a friendly sports-tech assistant. Respond with emojis and brand tone.");
+exports.askGeneral = async (prompt) => {
+  try {
+    return await ask(prompt, "You are BETRIX, a friendly sports-tech assistant. Respond with emojis and brand tone.");
+  } catch (e) {
+    console.error("OpenAI error:", e.message);
+    return "⚠️ BETRIX is upgrading its brain. Try again shortly.";
+  }
+};
 
-exports.askFootball = async (prompt) =>
-  ask(prompt, "You are BETRIX, an expert in football odds, fixtures, and match analysis. Respond with stats, emojis, and betting psychology.");
+exports.askFootball = async (prompt) => {
+  try {
+    return await ask(prompt, "You are BETRIX, an expert in football odds, fixtures, and match analysis. Respond with stats, emojis, and betting psychology.");
+  } catch (e) {
+    console.error("OpenAI error:", e.message);
+    return "⚽ BETRIX is reloading match data. Please retry in a moment.";
+  }
+};
