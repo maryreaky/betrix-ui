@@ -1,5 +1,6 @@
 ﻿const express = require("express");
 const app = express();
+app.use('/admin', adminRouter);
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -12,6 +13,7 @@ app.use((req, res, next) => {
 });
 
 const { handleTelegram } = require("./server/handlers/telegram");
+const adminRouter = require('./src/server/routes/admin');
 
 app.post("/webhook/telegram", async (req, res) => {
   try {
@@ -31,3 +33,4 @@ app.use((req, res) => res.status(404).send("Not Found"));
 const port = Number(process.env.PORT) || 10000;
 app.listen(port, "0.0.0.0", () => console.log("BETRIX server listening", port));
 module.exports = app;
+
