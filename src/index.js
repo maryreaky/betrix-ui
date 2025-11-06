@@ -13,6 +13,10 @@ const express_probe = (app) => {
 const express = require("express");
 const app = express();
 
+// Health check required by Render
+app.get('/health', (req, res) => res.status(200).json({ ok: true, tag: process.env.DEPLOY_TAG || 'none' }));
+
+
 // Mount admin router
 try {
   const adminRouter = require("./server/routes/admin");
@@ -32,6 +36,7 @@ express_probe(app);
 app.listen(PORT, "0.0.0.0", () => {
   console.log("✅ BETRIX server listening on", PORT);
 });
+
 
 
 

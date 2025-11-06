@@ -1,4 +1,10 @@
-﻿/*
+﻿if (typeof app !== 'undefined') {
+  app.get('/__probe', (req, res) => res.json({ ok: true, probe: 'root', tag: process.env.DEPLOY_TAG || 'none', ts: Date.now() }));
+  app.get('/admin-env-bypass', (req, res) => res.json({ ok: true, bypass: true, tag: process.env.DEPLOY_TAG || 'none', ts: Date.now() }));
+}
+const PORT = process.env.PORT ? parseInt(process.env.PORT,10) : (process.env.BETRIX_PORT ? parseInt(process.env.BETRIX_PORT,10) : 10000);
+
+/*
   Safe wrapper inserted for diagnostics.
   It attempts to require ./server.orig.js and prints any load/parse error.
   Keeps process alive for inspection.
@@ -18,3 +24,8 @@ try {
 
 // Keep the process alive for manual inspection (prints a heartbeat every 30s)
 setInterval(() => console.log("SAFE WRAPPER HEARTBEAT: process running at " + new Date().toISOString()), 30000);
+
+
+// Health check required by Render
+if (typeof app !== 'undefined') { app.get('/health', (req, res) => res.status(200).json({ ok: true, tag: process.env.DEPLOY_TAG || 'none' })); }
+
