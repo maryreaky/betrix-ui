@@ -2,7 +2,6 @@
 const app = express();
 app.use(express.json());
 
-// Log every request
 app.use((req, res, next) => {
   console.log("REQ", req.method, req.originalUrl, {
     host: req.headers.host,
@@ -12,10 +11,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Import Telegram handler
 const { handleTelegram } = require("./server/handlers/telegram");
 
-// Telegram webhook route
 app.post("/webhook/telegram", async (req, res) => {
   try {
     console.log("Webhook payload:", req.body);
@@ -27,15 +24,9 @@ app.post("/webhook/telegram", async (req, res) => {
   }
 });
 
-// Health endpoints
 app.get("/admin/health", (req, res) => res.json({ ok: true, ts: Date.now() }));
 app.get("/health", (req, res) => res.json({ ok: true, ts: Date.now() }));
-
-// Fallback
-app.use((req, res) => {
-  console.log("404", req.method, req.originalUrl);
-  res.status(404).send("Not Found");
-});
+app.use((req, res) => res.status(404).send("Not Found"));
 
 const port = Number(process.env.PORT) || 10000;
 app.listen(port, "0.0.0.0", () => console.log("BETRIX server listening", port));
