@@ -5,7 +5,7 @@
     plan: free
     region: oregon
     branch: main
-    buildCommand: npm install && npm run build || true
+    buildCommand: npm install && npm run build
     startCommand: node src/index.js
     envVars:
       - key: BOT_TOKEN
