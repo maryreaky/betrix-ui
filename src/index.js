@@ -1,42 +1,44 @@
-﻿console.log('DEPLOY_TAG: 20251106-132726');
-
-/* ROOT PROBES (debug) */
-const express_probe = (app) => {
-  try {
-    app.get('/__probe', (req, res) => res.json({ ok: true, probe: 'root', tag: '20251106-132726', ts: Date.now() }));
-    app.get('/admin-env-bypass', (req, res) => res.json({ ok: true, bypass: true, tag: '20251106-132726', ts: Date.now() }));
-  } catch(e) {
-    console.error('probe-insert-failed', e && e.message);
-  }
-};
-/* END PROBES */
-const express = require("express");
+﻿const express = require("express");
 const app = express();
-
-// Health check required by Render
-app.get('/health', (req, res) => res.status(200).json({ ok: true, tag: process.env.DEPLOY_TAG || 'none' }));
-
-
-// Mount admin router
-try {
-  const adminRouter = require("./server/routes/admin");
-  app.use("/admin", adminRouter);
-  console.log("✅ Admin router mounted at /admin");
-} catch (e) {
-  console.error("❌ Admin router failed to load:", e.message);
-}
-
-// Health probe
-app.get("/__probe", (req, res) => res.json({ ok: true, ts: Date.now() }));
-
-// Start server
 const PORT = process.env.PORT || 10000;
-express_probe(app);
-express_probe(app);
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("✅ BETRIX server listening on", PORT);
+
+app.use(express.json()); // ✅ Global JSON parser
+
+// ✅ Log every request
+app.use((req, res, next) => {
+  console.log("📥 Incoming:", req.method, req.url);
+  next();
 });
 
+// ✅ Health check
+app.get("/health", (req, res) => res.json({ ok: true, ts: Date.now() }));
 
+// ✅ Root probe
+app.get("/__probe", (req, res) => res.json({ ok: true, probe: "root", ts: Date.now() }));
 
+// ✅ Mount webhook routers
+try {
+  const webhookRouter = require("./server/routes/webhook");
+  app.use("/webhook", webhookRouter);
+  console.log("✅ Mounted /webhook");
+} catch (e) {
+  console.error("❌ Failed to mount /webhook", e.message);
+}
 
+try {
+  const webhookAiRouter = require("./server/routes/webhook-ai");
+  app.use("/webhook-ai", webhookAiRouter);
+  console.log("✅ Mounted /webhook-ai");
+} catch (e) {
+  console.error("❌ Failed to mount /webhook-ai", e.message);
+}
+
+// ✅ Fallback error handler
+app.use((err, req, res, next) => {
+  console.error("❌ Express error:", err);
+  res.status(500).json({ ok: false, error: err.message || "Internal error" });
+});
+
+app.listen(PORT, () => {
+  console.log("✅ BETRIX server listening on", PORT);
+});
