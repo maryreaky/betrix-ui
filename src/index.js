@@ -28,8 +28,10 @@ app.get("/__probe", (req, res) => res.json({ ok: true, ts: Date.now() }));
 // Start server
 const PORT = process.env.PORT || 10000;
 express_probe(app);
+express_probe(app);
 app.listen(PORT, "0.0.0.0", () => {
   console.log("✅ BETRIX server listening on", PORT);
 });
+
 
 
