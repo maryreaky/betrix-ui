@@ -11,5 +11,11 @@ module.exports = (cfg) => {
       console.error('webhook top error', e && e.stack ? e.stack : e);
     }
   });
-  return router;
+    // ✅ Test route
+  router.post('/test-webhook', (req, res) => {
+    console.log('🔔 WEBHOOK HIT test-webhook');
+    res.json({ ok: true, received: true });
+  });
+return router;
 };
+
