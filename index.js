@@ -3,7 +3,7 @@ const app = express();
 
 // Mount admin router
 try {
-  const adminRouter = require("./server/routes/admin");
+  const adminRouter = require("./src/server/routes/admin");
   app.use("/admin", adminRouter);
 } catch (e) {
   console.error("Admin router failed to load:", e.message);
