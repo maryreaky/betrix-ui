@@ -2,13 +2,9 @@
   - type: web
     name: betrix-ui
     env: node
+    buildCommand: npm install
+    startCommand: node index.js
     plan: free
     region: oregon
     branch: main
-    buildCommand: npm install && npm run build
-    startCommand: node src/index.js
-    envVars:
-      - key: BOT_TOKEN
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
+    repo: https://github.com/maryreaky/betrix-ui
