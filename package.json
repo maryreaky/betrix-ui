@@ -1,22 +1,16 @@
-{
+﻿{
+  "name": "betrix-core",
+  "version": "0.1.0",
   "private": true,
-  "engines": {
-    "node": ">=18 <19"
-  },
-  "name": "betrix-ui",
-  "version": "0.0.0",
-  "scripts": {
-    "prebuild": "node -v || true",
-    "start": "node server/webhook.js",
-    "start:webhook": "node server/webhook.js",
-    "start:polling": "ENABLE_POLLING=true node betrix-polling.js",
-    "build": "node ./scripts/build-static.js"
-  },
+  "engines": { "node": ">=22.0.0" },
+  "scripts": { "start": "node src/index.js" },
   "dependencies": {
-    "body-parser": "^1.20.3",
-    "dotenv": "^17.2.3",
-    "express": "^4.21.2",
-    "node-fetch": "^2.7.0",
-    "node-telegram-bot-api": "^0.66.0"
+    "express": "^4.18.2",
+    "pino": "^8.14.0",
+    "uuid": "^9.0.0",
+    "undici": "^6.12.0"
+  },
+  "overrides": {
+    "node-fetch": "3.3.2"
   }
 }
