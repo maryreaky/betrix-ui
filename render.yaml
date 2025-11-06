@@ -3,7 +3,7 @@
     name: betrix-ui
     env: node
     buildCommand: npm install
-    startCommand: node index.js
+    startCommand: node src/index.js
     plan: free
     region: oregon
     branch: main
