@@ -21,7 +21,7 @@ app.get("/webhook/telegram", (req, res) => res.json({ ok: true, probe: true, ts:
 app.get("/admin/health", (req, res) => res.json({ ok: true, ts: Date.now() }));
 app.head("/admin/health", (req, res) => res.status(200).end());
 
-const port = process.env.PORT || 10000;
+const port = Number(process.env.PORT) || 10000;
 app.listen(port, () => console.log("BETRIX server listening", port));
 
 console.log("Env check:", {
