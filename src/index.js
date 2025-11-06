@@ -20,4 +20,8 @@ console.log("Env check:", {
   hasBotToken: !!process.env.BOT_TOKEN,
   hasOpenAI: !!process.env.OPENAI_API_KEY
 });
+# Added: accept GET for webhook probes and HEAD for health probes
+app.get("/webhook/telegram", (req, res) => res.json({ ok: true, probe: true, ts: Date.now() }));
+app.head("/admin/health", (req, res) => res.status(200).end());
 module.exports = app;
+
