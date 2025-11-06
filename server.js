@@ -218,7 +218,7 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
   }
 });
         let json;
-        try { json = await resp.json(); } catch(e) { json = { parseError: true, text: await resp.text() }; }
+        try\ \{\n\ \ const\ _txt\ =\ await\ resp\.text\(\)\.catch\(e\ =>\ """"\ \+\ e\);\n\ \ try\ \{\ json\ =\ JSON\.parse\(_txt\);\ }\ catch\ \(e2\)\ \{\ json\ =\ \{\ parseError:\ true,\ text:\ _txt\ };\ }\n}\ catch\ \(e3\)\ \{\n\ \ json\ =\ \{\ parseError:\ true,\ error:\ """"\ \+\ e3\ };\n}
         console.log('tg sendMessage', resp.status, JSON.stringify(json));
       } catch (err) {
         console.error('tg outgoing error', err && err.stack ? err.stack : err);
@@ -229,5 +229,6 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
     try { res.status(200).send('ok') } catch {}
   }
 });
+
 
 
