@@ -1,8 +1,4 @@
-﻿/**
-// Injected by hotfix: use TELEGRAM_BOT_TOKEN from env
-const token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || process.env.TELEGRAM_TOKEN;
-const apiMethod = apiMethod || 'sendMessage';
-
+/**
  * functions/webhook.js
  * BETRIX production-ready patch:
  * - Upstash-backed per-chat rate limiter + persistent subscriptions
@@ -249,7 +245,7 @@ function parseOddsFromMarket(market) {
 // Telegram helpers
 async function sendTelegram(method, payload) {
   if (!BOT_TOKEN) { console.error('BOT_TOKEN missing'); return null; }
-  const res = await fetch(``https://api.telegram.org/bot${token}/${apiMethod}`
+  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -613,6 +609,5 @@ const { ask } = require('../utils/openai');
     return { statusCode: 500, body: 'Server error' };
   }
 };
-
 
 
