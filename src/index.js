@@ -1,6 +1,6 @@
 const express = require("express");
 const app = express();
-const PORT = process.env.PORT || (process.env.PORT || 10000);
+const PORT = process.env.PORT || (process.env.PORT || (process.env.PORT || 10000));
 
 app.use(express.json()); // ? Global JSON parser
 
@@ -44,4 +44,5 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log("? BETRIX server listening on", PORT);
 });
+
 

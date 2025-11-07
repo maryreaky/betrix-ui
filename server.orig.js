@@ -49,7 +49,7 @@ process.on('uncaughtException', (e) => console.error('UNCAUGHT', e && e.stack ? 
 process.on('unhandledRejection', (r) => console.error('UNHANDLED REJECTION', r));
 
 // Bind to PORT on 0.0.0.0
-const PORT = parseInt(process.env.PORT || '(process.env.PORT || 10000)', 10);
+const PORT = parseInt(process.env.PORT || '(process.env.PORT || (process.env.PORT || 10000))', 10);
 const server = http.createServer(app);
 server.headersTimeout = 60000;
 server.requestTimeout = 60000;
@@ -148,5 +148,6 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
 
 // __EOF_SAFE_FIX__ appended 2025-11-05T16:48:10
 try { module.exports = module.exports || {}; } catch(e) {} 
+
 
 
