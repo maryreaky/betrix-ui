@@ -1,63 +1,104 @@
-﻿/**
- * src/server/utils/telegramSend.js
- * Safe helper: converts aiResp -> plain text then forwards to telegram client
- */
-function toPlainText(aiResp) {
-  if (typeof aiResp === "string") return aiResp;
-  if (aiResp && typeof aiResp === "object" && aiResp.text) return aiResp.text;
-  try { return JSON.stringify(aiResp); } catch(e) { return String(aiResp); }
+﻿/*
+  Real Telegram sender
+  - Uses TELEGRAM_BOT_TOKEN from process.env (Render already has this var)
+  - Exports sendText(telegramClient, chatId, aiResp)
+  - aiResp can be: string, { text }, or { text, parse_mode, reply_markup }
+  - Returns Telegram API response object
+*/
+const https = require('https');
+
+function toPayload(aiResp) {
+  if (!aiResp) return { text: '' };
+  if (typeof aiResp === 'string') return { text: aiResp };
+  if (typeof aiResp === 'object') {
+    if (aiResp.text) return aiResp;
+    // fallback: stringify
+    return { text: String(aiResp) };
+  }
+  return { text: String(aiResp) };
 }
-async function sendText(telegramClient, chatId, aiResp) {
-  const text = toPlainText(aiResp);
-  if (telegramClient && typeof telegramClient.send === "function") return telegramClient.send({ chatId, text });
-  if (telegramClient && typeof telegramClient.sendMessage === "function") return telegramClient.sendMessage(chatId, text);
-  return { chatId, text };
-}
-module.exports = { sendText, toPlainText };
-  
-// EXTERNAL-SEND-RESULT/EXTERNAL-SEND-ERROR instrumentation added temporarily for debugging.
-// Remove after you capture the Telegram API response.
-const __orig_send_impl_marker = Symbol.for('__orig_send_impl_marker');
-try {
-  (function instrument() {
-    const util = require('util');
-    const mod = module.exports || exports;
-    // If module exports an async sendText(telegramClient, chatId, aiResp)
-    if (mod && typeof mod.sendText === 'function') {
-      const orig = mod.sendText;
-      mod.sendText = async function debugSendText() {
-        const args = Array.from(arguments);
-        const chatId = args[1];
-        let preview = '<no-preview>';
-        try { preview = typeof args[2] === 'string' ? args[2] : (args[2] && args[2].text) || JSON.stringify(args[2]).slice(0,200); } catch (e) {}
-        console.info('EXTERNAL-SEND-TRACE', { when: Date.now(), chatId, preview });
+
+function postJson(url, body, timeoutMs = 10000) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const data = Buffer.from(JSON.stringify(body));
+    const opts = {
+      hostname: u.hostname,
+      port: u.port || 443,
+      path: u.pathname + (u.search || ''),
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': data.length
+      },
+      timeout: timeoutMs
+    };
+
+    const req = https.request(opts, (res) => {
+      let raw = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => raw += chunk);
+      res.on('end', () => {
         try {
-          const res = await orig.apply(this, args);
-          try {
-            // Log returned response; if axios-style, res.data; otherwise full res (trimmed)
-            const resultForLog = (res && res.data) ? res.data : res;
-            console.info('EXTERNAL-SEND-RESULT', { when: Date.now(), chatId, result: resultForLog });
-          } catch (e) {
-            console.error('EXTERNAL-SEND-RESULT-LOG-ERR', e && e.stack ? e.stack : e);
-          }
-          return res;
-        } catch (err) {
-          try {
-            // If error.response exists (axios), include response.data
-            const errBody = err && err.response ? (err.response.data || err.response) : (err && (err.stack || err.message) ) ;
-            console.error('EXTERNAL-SEND-ERROR', { when: Date.now(), chatId, error: errBody });
-          } catch (e) {
-            console.error('EXTERNAL-SEND-ERROR-LOG-ERR', e && e.stack ? e.stack : e);
-          }
-          throw err;
+          const parsed = JSON.parse(raw || '{}');
+          resolve({ statusCode: res.statusCode, body: parsed });
+        } catch (e) {
+          resolve({ statusCode: res.statusCode, body: raw });
         }
-      };
-      console.info('EXTERNAL-SEND-INSTRUMENTATION: installed on telegramSend.sendText');
-    } else {
-      console.warn('EXTERNAL-SEND-INSTRUMENTATION: sendText not found to instrument in telegramSend');
-    }
-  })();
-} catch (outer) {
-  console.error('EXTERNAL-SEND-INSTRUMENTATION-FAILED', outer && outer.stack ? outer.stack : outer);
+      });
+    });
+
+    req.on('error', (err) => reject(err));
+    req.on('timeout', () => {
+      req.destroy(new Error('request-timeout'));
+    });
+
+    req.write(data);
+    req.end();
+  });
 }
-  
+
+async function sendText(telegramClient, chatId, aiResp) {
+  const token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || process.env.TELEGRAM_TOKEN;
+  if (!token) {
+    const err = new Error('TELEGRAM_BOT_TOKEN not set in environment');
+    console.error('EXTERNAL-SEND-ERROR', { when: Date.now(), chatId, error: err.message });
+    throw err;
+  }
+
+  const payload = toPayload(aiResp);
+  const method = 'sendMessage';
+  const url = https://api.telegram.org/bot8291858258:AAFB5ihmJLfTLyva1WpHEw-lReBidFoa-uc/;
+
+  // Ensure required fields
+  const body = Object.assign({}, payload, { chat_id: chatId });
+  // Limit size of text to Telegram limits if needed
+  if (body.text && body.text.length > 4096) body.text = body.text.slice(0, 4096);
+
+  // Log outgoing trace
+  try {
+    console.info('EXTERNAL-SEND-TRACE', { when: Date.now(), chatId, preview: body.text && body.text.slice(0,200) });
+  } catch (e) { /* ignore logging errors */ }
+
+  try {
+    const res = await postJson(url, body, 10000);
+    try {
+      // Normalize and log
+      console.info('EXTERNAL-SEND-RESULT', { when: Date.now(), chatId, statusCode: res.statusCode, body: res.body });
+    } catch(e) { /* ignore logging error */ }
+    // If Telegram API returned ok:false, surface as error to caller but keep logs
+    if (res && res.body && res.body.ok === false) {
+      const err = new Error('telegram-api-ok-false');
+      err.response = res.body;
+      throw err;
+    }
+    return res.body;
+  } catch (err) {
+    try {
+      console.error('EXTERNAL-SEND-ERROR', { when: Date.now(), chatId, error: err && (err.response || err.message || err.stack) });
+    } catch(e) {}
+    throw err;
+  }
+}
+
+module.exports = { sendText, toPlainText: (aiResp) => (toPayload(aiResp).text) };
