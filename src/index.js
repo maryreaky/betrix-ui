@@ -94,3 +94,54 @@ try {
 }
 
 
+
+/* EXTERNAL-SEND-TRACE-WRAPPER */
+// Temporary external send tracer: wraps the telegramSend helper to log network responses.
+// Remove this block after debugging.
+try {
+  const path = require('path');
+  const tsPathCandidates = [
+    path.join(__dirname, 'server', 'utils', 'telegramSend.js'),
+    path.join(__dirname, 'server', 'utils', 'telegramSend'),
+    path.join(__dirname, 'server', 'utils', 'telegramSend.cjs')
+  ];
+  for (const p of tsPathCandidates) {
+    try {
+      const mod = require(p);
+      if (mod && typeof mod.sendText === 'function') {
+        const orig = mod.sendText;
+        mod.sendText = async function wrappedSend(telegramClient, chatId, aiResp) {
+          try {
+            console.info('EXTERNAL-SEND-TRACE', { when: Date.now(), chatId, textPreview: (typeof aiResp === 'string' ? aiResp : (aiResp && aiResp.text) || '<complex>' ) });
+          } catch (e) {
+            console.error('EXTERNAL-SEND-TRACE-LOG-ERR', e && e.stack ? e.stack : e);
+          }
+          try {
+            const res = await orig.apply(this, arguments);
+            try {
+              console.info('EXTERNAL-SEND-RESULT', { when: Date.now(), chatId, result: res && (res.data || res) || '<no-result>' });
+            } catch (e) {
+              console.error('EXTERNAL-SEND-RESULT-LOG-ERR', e && e.stack ? e.stack : e);
+            }
+            return res;
+          } catch (err) {
+            try {
+              console.error('EXTERNAL-SEND-ERROR', { when: Date.now(), chatId, error: err && (err.response ? err.response.data || err.message : (err.stack || err.message)) });
+            } catch (e) {
+              console.error('EXTERNAL-SEND-ERROR-LOG-ERR', e && e.stack ? e.stack : e);
+            }
+            throw err;
+          }
+        };
+        console.info('EXTERNAL-SEND-TRACE: wrapped telegramSend at', p);
+        break;
+      }
+    } catch (e) {
+      // ignore and try next candidate
+    }
+  }
+} catch (outer) {
+  console.error('EXTERNAL-SEND-TRACE-WRAP-FAILED', outer && outer.stack ? outer.stack : outer);
+}
+
+
