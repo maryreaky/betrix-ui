@@ -49,7 +49,7 @@ async function sendText(){
   if (!text || String(text).trim().length === 0) throw new Error('empty-text');
 
   const apiMethod = process.env.TELEGRAM_API_METHOD || 'sendMessage';
-  const url = https://api.telegram.org/bot8291858258:AAFB5ihmJLfTLyva1WpHEw-lReBidFoa-uc/;
+  const url = `https://api.telegram.org/bot${token}/${apiMethod}`;
   const body = { chat_id: chatId, text: text.slice(0,4096) };
 
   try {
@@ -70,7 +70,7 @@ async function sendText(){
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const webhookUrl = process.env.WEBHOOK_URL || (process.env.RENDER_EXTERNAL_URL ? process.env.RENDER_EXTERNAL_URL + '/webhook/telegram' : null);
     if (token && webhookUrl) {
-      const setUrl = https://api.telegram.org/bot8291858258:AAFB5ihmJLfTLyva1WpHEw-lReBidFoa-uc/setWebhook;
+      const setUrl = `https://api.telegram.org/bot${token}/setWebhook`;
       await postJson(setUrl, { url: webhookUrl }, 10000);
       console.info('WEBHOOK-BOOT-SET', { when: Date.now(), webhook: webhookUrl });
     } else {
