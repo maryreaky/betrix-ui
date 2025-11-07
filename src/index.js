@@ -56,6 +56,7 @@ if (require.main === module) {
 //
 // Auto-inserted by one-shot shim: mount rateLimiter and admin route
 const { rateLimiter, adminHandler } = require('./server/utils/openai');
+const { sendText } = require('./src/server/utils/telegramSend');
 
 // If you have a webhook route, ensure rateLimiter is applied when posting to /webhook/telegram
 // Example: app.post('/webhook/telegram', rateLimiter, telegramHandler);
@@ -66,5 +67,6 @@ try {
     }
   }
 } catch(e) { /* non-fatal */ }
+
 
 
