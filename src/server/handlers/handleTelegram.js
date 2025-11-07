@@ -1,6 +1,6 @@
 const axios = require("axios");
 
-const { ask } = require('../server/utils/openai');
+const { ask } = require('../utils/openai');
 module.exports = async function handleTelegram(payload, cfg = {}) {
   try {
     const BOT_TOKEN = cfg.BOT_TOKEN || process.env.BOT_TOKEN;
@@ -45,4 +45,5 @@ module.exports = async function handleTelegram(payload, cfg = {}) {
     console.error("? Telegram handler error:", err.stack || err.message || err);
   }
 };
+
 

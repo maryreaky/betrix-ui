@@ -1,5 +1,5 @@
 const { sendText } = require("../utils/send");
-const { ask } = require('../server/utils/openai');
+const { ask } = require('../utils/openai');
 
 exports.handleTelegram = async (update, ctx) => {
   const message = update.message?.text?.trim();
@@ -15,4 +15,5 @@ exports.handleTelegram = async (update, ctx) => {
 
   await sendText(chatId, reply);
 };
+
 
