@@ -5,7 +5,7 @@ const express = require('express');
 const router = express.Router();
 const { handleTelegram } = require('../handlers/telegram');
 module.exports = (cfg) => {
-  router.post('/telegram', async (req, res) => { console.info("WEBHOOK RAW BODY:", JSON.stringify(req.body).slice(0,1000)); res.status(200).send("ok"); return;
+  router.post('/telegram', async (req, res) => { console.info("WEBHOOK RAW BODY:", JSON.stringify(req.body).slice(0,1000));
     try {
       res.status(200).send('ok'); // ack quickly
       await handleTelegram(req.body, cfg);
@@ -21,6 +21,7 @@ module.exports = (cfg) => {
   });
 return router;
 };
+
 
 
 
