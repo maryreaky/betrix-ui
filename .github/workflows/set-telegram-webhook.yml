@@ -1,0 +1,21 @@
+name: set-telegram-webhook
+on:
+  workflow_dispatch:
+jobs:
+  set-webhook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set Telegram webhook
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          SITE_URL: https://betrix-ui.onrender.com
+          PATH: /webhook/telegram
+        run: |
+          echo "Setting webhook to ${SITE_URL}${PATH}"
+          resp=$(curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${SITE_URL}${PATH}")
+          echo "$resp"
+          if echo "$resp" | grep -q '"ok":true'; then
+            echo "Webhook set"
+          else
+            echo "Failed to set webhook: $resp" && exit 1
+          fi
