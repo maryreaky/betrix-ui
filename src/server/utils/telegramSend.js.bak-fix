@@ -1,8 +1,8 @@
 ﻿/*
- Minimal, production-safe Telegram send helper
- - Reads TELEGRAM_BOT_TOKEN from process.env (Render should have it)
- - Exports async sendText(telegramClient, chatId, aiResp)
- - Logs EXTERNAL-SEND-TRACE / EXTERNAL-SEND-RESULT / EXTERNAL-SEND-ERROR
+  Minimal, production-safe Telegram sender
+  - Uses TELEGRAM_BOT_TOKEN from process.env (Render must have it)
+  - Exports async sendText(telegramClient, chatId, aiResp)
+  - Logs EXTERNAL-SEND-TRACE / EXTERNAL-SEND-RESULT / EXTERNAL-SEND-ERROR
 */
 const https = require('https');
 
