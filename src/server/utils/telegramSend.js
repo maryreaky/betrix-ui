@@ -89,7 +89,7 @@ async function sendText(){
   }
 
   const apiMethod = 'sendMessage';
-  const url = https://api.telegram.org/bot8291858258:AAFB5ihmJLfTLyva1WpHEw-lReBidFoa-uc/;
+  const url = `https://api.telegram.org/bot${token}/${apiMethod}`;
   const body = Object.assign({}, payload, { chat_id: chatId });
   if (body.text && body.text.length > 4096) body.text = body.text.slice(0,4096);
 
@@ -106,3 +106,4 @@ async function sendText(){
 }
 
 module.exports = { sendText, toPlainText: (ai) => (ai && ai.text) || (typeof ai === 'string' ? ai : '') };
+
