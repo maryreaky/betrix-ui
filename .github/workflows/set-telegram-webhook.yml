@@ -5,17 +5,34 @@ jobs:
   set-webhook:
     runs-on: ubuntu-latest
     steps:
-      - name: Set Telegram webhook
+      - name: Debug environment
+        run: |
+          echo "Runner: $(uname -a)"
+          echo "PATH: $PATH"
+          echo "Which curl:"
+          which curl || echo "curl not found"
+          echo "Show TELEGRAM_BOT_TOKEN present:"
+          if [ -z "${{ secrets.TELEGRAM_BOT_TOKEN }}" ]; then
+            echo "TELEGRAM_BOT_TOKEN is NOT set in secrets" && exit 1
+          else
+            echo "TELEGRAM_BOT_TOKEN is set (not printed for security)"
+          fi
+
+      - name: Set Telegram webhook (verbose)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           SITE_URL: https://betrix-ui.onrender.com
           PATH: /webhook/telegram
         run: |
+          set -x
           echo "Setting webhook to ${SITE_URL}${PATH}"
-          resp=$(curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${SITE_URL}${PATH}")
-          echo "$resp"
-          if echo "$resp" | grep -q '"ok":true'; then
+          curl -v -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${SITE_URL}${PATH}" -o /tmp/tg-result.json || { echo "curl failed"; cat /tmp/tg-result.json 2>/dev/null || true; exit 1; }
+          echo "Result:"
+          cat /tmp/tg-result.json
+          if grep -q '"ok":true' /tmp/tg-result.json; then
             echo "Webhook set"
           else
-            echo "Failed to set webhook: $resp" && exit 1
+            echo "Failed to set webhook (check token/URL):"
+            cat /tmp/tg-result.json
+            exit 1
           fi
