@@ -1,4 +1,4 @@
-﻿if (typeof app !== 'undefined') {
+if (typeof app !== 'undefined') {
   app.get('/__probe', (req, res) => res.json({ ok: true, probe: 'root', tag: process.env.DEPLOY_TAG || 'none', ts: Date.now() }));
   app.get('/admin-env-bypass', (req, res) => res.json({ ok: true, bypass: true, tag: process.env.DEPLOY_TAG || 'none', ts: Date.now() }));
 }
@@ -28,4 +28,9 @@ setInterval(() => console.log("SAFE WRAPPER HEARTBEAT: process running at " + ne
 
 // Health check required by Render
 if (typeof app !== 'undefined') { app.get('/health', (req, res) => res.status(200).json({ ok: true, tag: process.env.DEPLOY_TAG || 'none' })); }
+
+
+
+process.on('unhandledRejection', (err) => { console.error('UnhandledRejection', err && err.stack ? err.stack : err) })
+process.on('uncaughtException', (err) => { console.error('UncaughtException', err && err.stack ? err.stack : err) })
 
