@@ -1,3 +1,22 @@
+const callRapidLlama = async (prompt) => {
+  const key = process.env.RAPID_API_KEY;
+  const res = await fetch("https://open-ai21.p.rapidapi.com/conversationllama", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-rapidapi-host": "open-ai21.p.rapidapi.com",
+      "x-rapidapi-key": key,
+    },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: prompt }],
+      web_access: false,
+    }),
+  });
+  const json = await res.json();
+  const reply = json?.result || json?.text || "No reply";
+  return { ok: true, text: reply };
+};
+
 /**
  * src/server/utils/openai.js
  * Backwards-compatible shim used by existing code.
@@ -76,3 +95,4 @@ async function ask(prompt, opts = {}) {
 }
 
 module.exports = { ask };
+
