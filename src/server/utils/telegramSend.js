@@ -68,7 +68,9 @@ async function sendText() {
   if (!text || String(text).trim().length === 0) { console.error('EXTERNAL-SEND-ABORT-EMPTY-TEXT',{when:Date.now(),chatId,preview:payload.text}); const e = new Error('empty-message'); e.code = 'empty-message'; throw e; }
 
   const apiMethod = 'sendMessage';
-  let url = https://api.telegram.org/bot${token}/${apiMethod};
+  const apiMethod = apiMethod || 'sendMessage';
+const url = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/${apiMethod}`;
+
   const body = Object.assign({}, payload, { chat_id: chatId });
   if (body.text && body.text.length > 4096) body.text = body.text.slice(0,4096);
 
@@ -100,4 +102,5 @@ async function sendText() {
 })();
 
 module.exports = { sendText, toPlainText: (ai) => (ai && ai.text) || (typeof ai === 'string' ? ai : '') };
+
 
