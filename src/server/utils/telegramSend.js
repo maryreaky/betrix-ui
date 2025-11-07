@@ -1,30 +1,8 @@
 ﻿/*
-Persistent telegramSend: env-driven; defensive normalization; setWebhook on boot
+Safe telegramSend.js — env-driven, defensive
 */
 const https = require('https');
 const { URL } = require('url');
-
-function toPayload(aiResp) {
-  if (!aiResp) return { text: '' };
-  if (typeof aiResp === 'string') return { text: aiResp };
-  if (typeof aiResp === 'object') {
-    if (aiResp.text) return { ...aiResp, text: String(aiResp.text) };
-    try { return { text: JSON.stringify(aiResp).slice(0,4096) }; } catch(e) { return { text: String(aiResp) }; }
-  }
-  return { text: String(aiResp) };
-}
-
-function extractChatId(arg){
-  if (arg === null || arg === undefined) return null;
-  if (typeof arg === 'number' || typeof arg === 'string') return arg;
-  if (typeof arg === 'object') {
-    if (arg.chat && (arg.chat.id || arg.chat_id)) return arg.chat.id || arg.chat_id;
-    if (arg.chat_id) return arg.chat_id;
-    if (arg.id) return arg.id;
-    if (arg.chatId) return arg.chatId;
-  }
-  return null;
-}
 
 function postJson(url, body, timeoutMs = 10000){
   return new Promise((resolve, reject) => {
@@ -49,58 +27,56 @@ function postJson(url, body, timeoutMs = 10000){
   });
 }
 
-async function sendText() {
+function prepareText(ai){
+  if (!ai) return '';
+  if (typeof ai === 'string') return ai;
+  if (typeof ai === 'object') { if (ai.text) return String(ai.text); try { return JSON.stringify(ai).slice(0,4096); } catch(e){ return String(ai); } }
+  return String(ai);
+}
+
+async function sendText(){
   const args = Array.from(arguments);
-  let chatId = null; let aiResp = null;
-
-  if (args.length === 1) { const obj = args[0]; chatId = extractChatId(obj); aiResp = (typeof obj === 'object' && obj.text) ? obj.text : obj; }
-  else if (args.length === 2) { chatId = extractChatId(args[0]) || extractChatId(args[1]); aiResp = (typeof args[1] === 'string' || typeof args[1] === 'object') ? args[1] : args[0]; }
-  else if (args.length >= 3) { chatId = extractChatId(args[1]); aiResp = args[2]; }
-
-  if (!chatId) { for (const a of args) { const c = extractChatId(a); if (c) { chatId = c; break; } } }
-  if (!aiResp) { for (const a of args) { if (typeof a === 'string') { aiResp = a; break; } } }
+  let chatId = null; let payload = null;
+  if (args.length === 1) { payload = args[0]; if (payload && payload.chat_id) chatId = payload.chat_id; }
+  else if (args.length >= 2) { chatId = args[0]; payload = args[1]; }
+  if (!chatId && payload && payload.chat && (payload.chat.id || payload.chat_id)) chatId = payload.chat.id || payload.chat_id;
+  if (!chatId) throw new Error('missing-chatId');
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) { const err = new Error('TELEGRAM_BOT_TOKEN not set'); console.error('EXTERNAL-SEND-ERROR',{when:Date.now(),chatId,error:err.message}); throw err; }
+  if (!token) throw new Error('TELEGRAM_BOT_TOKEN missing');
 
-  const payload = toPayload(aiResp);
-  const text = payload.text || '';
-  if (!text || String(text).trim().length === 0) { console.error('EXTERNAL-SEND-ABORT-EMPTY-TEXT',{when:Date.now(),chatId,preview:payload.text}); const e = new Error('empty-message'); e.code = 'empty-message'; throw e; }
+  const text = prepareText(payload);
+  if (!text || String(text).trim().length === 0) throw new Error('empty-text');
 
-  const apiMethod = 'sendMessage';
-  const apiMethod = apiMethod || 'sendMessage';
-const url = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/${apiMethod}`;
+  const apiMethod = process.env.TELEGRAM_API_METHOD || 'sendMessage';
+  const url = https://api.telegram.org/bot8291858258:AAFB5ihmJLfTLyva1WpHEw-lReBidFoa-uc/;
+  const body = { chat_id: chatId, text: text.slice(0,4096) };
 
-  const body = Object.assign({}, payload, { chat_id: chatId });
-  if (body.text && body.text.length > 4096) body.text = body.text.slice(0,4096);
-
-  try { console.info('EXTERNAL-SEND-TRACE',{when:Date.now(),chatId,textPreview:String(body.text).slice(0,200)}); } catch(e){}
   try {
+    console.info('EXTERNAL-SEND-TRACE',{when:Date.now(),chatId,textPreview: body.text.slice(0,200)});
     const res = await postJson(url, body, 10000);
-    try { console.info('EXTERNAL-SEND-RESULT',{when:Date.now(),chatId,statusCode:res.statusCode,body:res.body}); } catch(e){}
+    console.info('EXTERNAL-SEND-RESULT',{when:Date.now(),chatId,statusCode:res.statusCode,body:res.body});
     if (res && res.body && res.body.ok === false) { const apiErr = new Error('telegram-api-ok-false'); apiErr.response = res.body; throw apiErr; }
     return res.body;
-  } catch (err) {
-    try { console.error('EXTERNAL-SEND-ERROR',{when:Date.now(),chatId,error:err && (err.response || err.message || err.stack)}); } catch(e){}
-    throw err;
+  } catch (e) {
+    console.error('EXTERNAL-SEND-ERROR',{when:Date.now(),chatId,error: e && (e.message || e.stack)});
+    throw e;
   }
 }
 
-// On boot, set webhook if available (idempotent)
+// idempotent webhook set on boot (best-effort)
 (async function ensureWebhook(){
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const webhookUrl = process.env.WEBHOOK_URL || (process.env.RENDER_EXTERNAL_URL ? process.env.RENDER_EXTERNAL_URL + '/webhook/telegram' : null);
     if (token && webhookUrl) {
-      const setUrl = https://api.telegram.org/bot${token}/${apiMethod};
+      const setUrl = https://api.telegram.org/bot8291858258:AAFB5ihmJLfTLyva1WpHEw-lReBidFoa-uc/setWebhook;
       await postJson(setUrl, { url: webhookUrl }, 10000);
       console.info('WEBHOOK-BOOT-SET', { when: Date.now(), webhook: webhookUrl });
     } else {
       console.info('WEBHOOK-BOOT-SKIP', { when: Date.now(), webhook: !!webhookUrl, token: !!token });
     }
-  } catch(e){ console.error('WEBHOOK-BOOT-ERROR', e && (e.message || e.stack || e)); }
+  } catch (e) { console.error('WEBHOOK-BOOT-ERROR', e && (e.message || e.stack)); }
 })();
 
-module.exports = { sendText, toPlainText: (ai) => (ai && ai.text) || (typeof ai === 'string' ? ai : '') };
-
-
+module.exports = { sendText, prepareText };
