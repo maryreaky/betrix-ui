@@ -49,7 +49,6 @@ module.exports = app;
 
 // Only start server when explicitly executed (avoid double listeners)
 if (require.main === module) {
-  app.listen(PORT, "0.0.0.0", () => {
-    console.info("BETRIX server listening on", PORT);
-  });
+  console.info("ENV PORT:", process.env.PORT, "computed PORT:", typeof PORT !== "undefined" ? PORT : "(undefined)"); app.listen(PORT, "0.0.0.0", () => { console.info("BETRIX server listening on", PORT); });
 }
+
