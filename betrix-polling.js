@@ -1,4 +1,4 @@
-ï»¿"use strict";
+"use strict";
 require("dotenv").config();
 const http = require("http");
 const TelegramBot = require("node-telegram-bot-api");
@@ -13,7 +13,7 @@ const server = http.createServer((req, res) => {
   res.writeHead(404);
   res.end("Not Found");
 });
-server.listen(PORT, () => {
+if (process.env.ENABLE_POLLING === "true") { server.listen(PORT, () } else { console.info("Polling disabled: ENABLE_POLLING != true") } => {
   console.log(`HTTP health server listening on port ${PORT}`);
   startBot();
 });
@@ -32,12 +32,12 @@ function startBot() {
     bot.sendMessage(chatId, text, opt).catch((e) => console.error("send err", e));
 
   bot.onText(/\/start/, (msg) =>
-    send(msg.chat.id, "Welcome to BETRIX âš¡ Use /menu to begin.")
+    send(msg.chat.id, "Welcome to BETRIX ? Use /menu to begin.")
   );
   bot.onText(/\/menu/, (msg) =>
     send(
       msg.chat.id,
-      "BETRIX Menu\nâ€¢ /signin\nâ€¢ /profile\nâ€¢ /share\nâ€¢ /balance\nâ€¢ /help"
+      "BETRIX Menu\n• /signin\n• /profile\n• /share\n• /balance\n• /help"
     )
   );
   bot.onText(/\/signin/, (msg) =>
@@ -72,3 +72,4 @@ function startBot() {
     bot.stopPolling().then(() => process.exit(0))
   );
 }
+
