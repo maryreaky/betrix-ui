@@ -2,7 +2,7 @@ const express = require("express");
 const app = express();
 
 // Use explicit numeric port only from env
-const PORT = parseInt(process.env.PORT, 10) || 10000;
+console.info("RENDER_ENV_PORT_RAW:", process.env.PORT); console.info("RENDER_ENV_KEYS:", Object.keys(process.env).sort().join(",")); const PORT = parseInt(process.env.PORT, 10) || 10000;
 
 // global middleware
 app.use(express.json({ limit: "128kb" }));
@@ -51,4 +51,5 @@ module.exports = app;
 if (require.main === module) {
   console.info("ENV PORT:", process.env.PORT, "computed PORT:", typeof PORT !== "undefined" ? PORT : "(undefined)"); app.listen(PORT, "0.0.0.0", () => { console.info("BETRIX server listening on", PORT); });
 }
+
 
