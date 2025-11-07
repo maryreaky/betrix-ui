@@ -65,7 +65,7 @@ async function sendText(telegramClient, chatId, aiResp) {
 
   const payload = normalize(aiResp);
   const apiMethod = 'sendMessage';
-  const url = https://api.telegram.org/bot8291858258:AAFB5ihmJLfTLyva1WpHEw-lReBidFoa-uc/;
+  const url = `https://api.telegram.org/bot${token}/${apiMethod}`;
   const body = Object.assign({}, payload, { chat_id: chatId });
   if (body.text && body.text.length > 4096) body.text = body.text.slice(0, 4096);
 
@@ -92,3 +92,4 @@ async function sendText(telegramClient, chatId, aiResp) {
 }
 
 module.exports = { sendText, toPlainText: (aiResp) => normalize(aiResp).text };
+
