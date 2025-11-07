@@ -53,3 +53,17 @@ if (require.main === module) {
 }
 
 
+//
+// Auto-inserted by one-shot shim: mount rateLimiter and admin route
+const { rateLimiter, adminHandler } = require('./src/server/utils/openai');
+
+// If you have a webhook route, ensure rateLimiter is applied when posting to /webhook/telegram
+// Example: app.post('/webhook/telegram', rateLimiter, telegramHandler);
+try {
+  if (typeof app === 'object' && app.post) {
+    if (!app._router || !app._router.stack || !app._router.stack.some(s => s.route && s.route.path === '/admin/ai-status')) {
+      app.get('/admin/ai-status', adminHandler);
+    }
+  }
+} catch(e) { /* non-fatal */ }
+
