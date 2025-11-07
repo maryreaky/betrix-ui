@@ -1,49 +1,55 @@
 const express = require("express");
 const app = express();
-const PORT = process.env.PORT || (process.env.PORT || (process.env.PORT || 10000));
 
-app.use(express.json()); // ? Global JSON parser
+// Use explicit numeric port only from env
+const PORT = parseInt(process.env.PORT, 10) || 10000;
 
-// ? Log every request
+// global middleware
+app.use(express.json({ limit: "128kb" }));
 app.use((req, res, next) => {
-  console.log("?? Incoming:", req.method, req.url);
+  try { console.info("INCOMING", req.method, req.url); } catch(e) {}
   next();
 });
 
-// ? Health check
+// health
 app.get("/health", (req, res) => res.json({ ok: true, ts: Date.now() }));
+app.get("/", (req, res) => res.json({ ok: true, ts: Date.now(), app: "BETRIX" }));
 
-// ? Root probe
-app.get("/__probe", (req, res) => res.json({ ok: true, probe: "root", ts: Date.now() }));
-
-// ? Mount webhook router (factory export)
+// Mount webhook router safely (factory pattern)
 try {
   const webhookRouterFactory = require("./server/routes/webhook");
-  const webhookRouter = webhookRouterFactory({});
+  const webhookRouter = typeof webhookRouterFactory === "function" ? webhookRouterFactory({}) : webhookRouterFactory;
   app.use("/webhook", webhookRouter);
-  console.log("? Mounted /webhook");
+  console.info("Mounted /webhook");
 } catch (e) {
-  console.error("? Failed to mount /webhook", e.message);
+  console.error("Failed to mount /webhook", e && e.message ? e.message : e);
 }
 
-// ? Mount webhook-AI router (direct export)
+// Mount webhook-AI router
 try {
   const webhookAiRouter = require("./server/routes/webhook-ai");
   app.use("/webhook-ai", webhookAiRouter);
-  console.log("? Mounted /webhook-ai");
+  console.info("Mounted /webhook-ai");
 } catch (e) {
-  console.error("? Failed to mount /webhook-ai", e.message);
+  console.error("Failed to mount /webhook-ai", e && e.message ? e.message : e);
 }
 
-// ? Fallback error handler
+// Fallback error handler
 app.use((err, req, res, next) => {
-  console.error("? Express error:", err);
-  res.status(500).json({ ok: false, error: err.message || "Internal error" });
+  console.error("Express error:", err && err.stack ? err.stack : err);
+  res.status(500).json({ ok: false, error: err && err.message ? err.message : "Internal error" });
 });
 
-app.listen(PORT, () => {
-  console.log("? BETRIX server listening on", PORT);
-});
+// Global process handlers
+process.on("unhandledRejection", (err) => console.error("UnhandledRejection", err && err.stack ? err.stack : err));
+process.on("uncaughtException", (err) => console.error("UncaughtException", err && err.stack ? err.stack : err));
 
+// Export app for tests
+module.exports = app;
 
-
+// Only start server when explicitly executed (avoid double listeners)
+if (require.main === module) {
+  app.listen(PORT, "0.0.0.0", () => {
+    console.info("BETRIX server listening on", PORT);
+  });
+}
