@@ -38,14 +38,25 @@ installGlobalHandlers();
 
 // Continue with original bootstrap if present
 try {
-  const main = require('./src/server/app') || require('./src/server') ;
-  if (typeof main === 'function') {
-    main();
+  // Load server factory from src/server/app (correct relative path) and start listening
+  const serverModule = require('./server/app');
+  if (serverModule && typeof serverModule.createServer === 'function') {
+    const app = serverModule.createServer({});
+    const port = process.env.PORT || 10000;
+    if (app && typeof app.listen === 'function') {
+      app.listen(port, () => console.info('SERVER: listening on port', port));
+    } else if (app && app.callback && typeof app.callback === 'function') {
+      app.callback().listen(port, () => console.info('SERVER(KOA): listening on port', port));
+    } else {
+      console.error('BOOT-FAIL: createServer returned non-listenable object');
+      process.exit(1);
+    }
   } else {
-    // fall back to original index behavior
-    require('./src/index-original') ;
+    console.error('BOOT-FAIL: src/server/app did not export createServer');
+    process.exit(1);
   }
 } catch (e) {
-  // If original index.js layout is different, log and continue
-  console.info('INDEX-BOOT: could not auto-defer to original entrypoint; continuing with existing index.js contents if any.');
+  console.error('INDEX-BOOT-ERROR', e && (e.stack || e.message || e));
+  process.exit(1);
 }
+
