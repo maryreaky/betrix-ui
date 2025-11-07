@@ -1,4 +1,4 @@
-﻿// Minimal adapter forwarding to telegramSend.js
+﻿// Forwarding adapter to telegramSend.js (persistent)
 try {
   const path = require('path');
   const real = require(path.join(__dirname,'telegramSend.js'));
