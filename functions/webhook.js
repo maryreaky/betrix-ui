@@ -7,7 +7,7 @@
  * - Preserves profiles/referrals/rewards and OpenAI conversational fallback
  *
  * Required env vars (set in Netlify):
- * BOT_TOKEN, BOT_USERNAME, OPENAI_API_KEY, UPSTASH_REST_URL, UPSTASH_REST_TOKEN, ADMIN_USER_IDS
+ * BOT_TOKEN, BOT_USERNAME, OPENAI_API_KEY /* (deprecated; calls now routed to utils/openai.ask) */, UPSTASH_REST_URL, UPSTASH_REST_TOKEN, ADMIN_USER_IDS
  * Optional: THEODDS_API_KEY, REWARD_SIGNUP_AMOUNT, REWARD_REFERRER_AMOUNT, MINIMUM_AGE
  *
  * Behavior:
@@ -21,7 +21,7 @@ const { ask } = require('../utils/openai');
 // Env
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const BOT_USERNAME = process.env.BOT_USERNAME || "";
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_API_KEY /* (deprecated; calls now routed to utils/openai.ask) */ = process.env.OPENAI_API_KEY /* (deprecated; calls now routed to utils/openai.ask) */;
 const UPSTASH_REST_URL = process.env.UPSTASH_REST_URL;
 const UPSTASH_REST_TOKEN = process.env.UPSTASH_REST_TOKEN;
 const THEODDS_API_KEY = process.env.THEODDS_API_KEY || "";
@@ -581,11 +581,11 @@ const { ask } = require('../utils/openai');
     pushContext(chatId, 'user', text || '');
     const messages = (function(){ const buf = inMemory.contexts.get(chatId) || []; const system = { role: "system", content: "You are BETRIX assistant. Friendly, concise, no betting tips." }; return [system, ...buf.slice(-2), { role: "user", content: text || "" }]; })();
     let aiReply = "Sorry, I couldn't generate a reply 🤖";
-    if (OPENAI_API_KEY) {
+    if (OPENAI_API_KEY /* (deprecated; calls now routed to utils/openai.ask) */) {
       try {
         const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_API_KEY}` },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_API_KEY /* (deprecated; calls now routed to utils/openai.ask) */}` },
           body: JSON.stringify({ model: "gpt-4o-mini", messages, max_tokens: 260, temperature: 0.5 })
         });
         if (openaiRes.ok) {
@@ -599,7 +599,7 @@ const { ask } = require('../utils/openai');
         console.error('OpenAI call failed', err);
       }
     } else {
-      console.error('OPENAI_API_KEY missing');
+      console.error('OPENAI_API_KEY /* (deprecated; calls now routed to utils/openai.ask) */ missing');
     }
     await sendTelegram('sendMessage', { chat_id: chatId, text: `💬 ${aiReply}\n\n🔎 Need more? Try /menu or /help.` });
 
@@ -609,4 +609,5 @@ const { ask } = require('../utils/openai');
     return { statusCode: 500, body: 'Server error' };
   }
 };
+
 
