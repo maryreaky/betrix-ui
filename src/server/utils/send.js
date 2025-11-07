@@ -76,6 +76,7 @@ async function _doSend(chatId, aiResp) {
   if (telegramSendHelper && typeof telegramSendHelper.sendText === 'function') {
     try {
 const text = (typeof aiResp === "string") ? aiResp : (aiResp && (aiResp.text || aiResp.message)) ? (typeof aiResp.text === "string" ? aiResp.text : (typeof aiResp.message === "string" ? aiResp.message : JSON.stringify(aiResp))) : JSON.stringify(aiResp);
+console.info("DEBUG Sending to Telegram:", { chatId: chatId, textType: typeof text, textPreview: String(text).slice(0,200) });
       return await telegramSendHelper.sendText(telegramClient, chatId, text);
     } catch (e) {
       console.error("telegramSend helper failed, falling back:", e && e.message ? e.message : e);
