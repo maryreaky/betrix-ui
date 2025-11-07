@@ -1,5 +1,5 @@
-﻿const { sendText } = require("../utils/send");
-const { askGeneral, askFootball } = require("../utils/openai");
+const { sendText } = require("../utils/send");
+const { ask } = require('../server/utils/openai');
 
 exports.handleTelegram = async (update, ctx) => {
   const message = update.message?.text?.trim();
@@ -10,8 +10,9 @@ exports.handleTelegram = async (update, ctx) => {
   const isFootball = /(arsenal|man city|odds|fixtures|scores|match|goal|jackpot|betrix|vip|fixed|football|analyse|stats|live)/.test(lower);
 
   const reply = isFootball
-    ? await askFootball(message)
-    : await askGeneral(message);
+    ? await ask(message)
+    : await ask(message);
 
   await sendText(chatId, reply);
 };
+

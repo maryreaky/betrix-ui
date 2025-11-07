@@ -17,6 +17,7 @@
 
 const fetch = require('node-fetch');
 
+const { ask } = require('../server/utils/openai');
 // Env
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const BOT_USERNAME = process.env.BOT_USERNAME || "";
@@ -282,6 +283,7 @@ function shortKickoff(k) { try { return k.split('T')[0] + ' ' + (k.split('T')[1]
 exports.handler = async (event) => {
   try {
     const url = require('url');
+const { ask } = require('../server/utils/openai');
     const qs = url.parse(event.rawUrl || event.path || "", true).query;
     if (process.env.WEBHOOK_SECRET && qs.secret !== process.env.WEBHOOK_SECRET) {
       console.error('secret mismatch');
