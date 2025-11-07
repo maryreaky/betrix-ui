@@ -1,37 +1,78 @@
-﻿const axios = require("axios");
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+/**
+ * src/server/utils/openai.js
+ * Backwards-compatible shim used by existing code.
+ * Provider priority: OPEN_ROUTER_KEY -> OPENAI_API_KEY -> stub reply
+ *
+ * Exports: ask(prompt, opts) -> returns { ok: true, text: "..." } or throws/returns { ok:false, error: "..." }
+ */
+const axios = require("axios");
 
-const ask = async (prompt, system) => {
+const OPEN_ROUTER_KEY = process.env.OPEN_ROUTER_KEY || null;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || null;
+const USE_STUB_AI = (process.env.USE_STUB_AI || "true").toLowerCase() === "true";
+
+async function callOpenRouter(prompt, opts = {}) {
+  const model = opts.model || "gpt-4o-mini";
+  const max_tokens = opts.max_tokens || 400;
+  const url = "https://api.openrouter.ai/v1/completions";
+  const body = { model, input: prompt, max_tokens };
+  const headers = { Authorization: `Bearer ${OPEN_ROUTER_KEY}`, "Content-Type": "application/json" };
+  const resp = await axios.post(url, body, { headers, timeout: 15000 });
+  // Normalise to text reply
+  const text = resp?.data?.choices?.[0]?.message?.content || resp?.data?.result || JSON.stringify(resp?.data);
+  return { ok: true, text: String(text) };
+}
+
+async function callOpenAI(prompt, opts = {}) {
+  const model = opts.model || "gpt-3.5-turbo";
+  const max_tokens = opts.max_tokens || 400;
   const url = "https://api.openai.com/v1/chat/completions";
-  const headers = {
-    Authorization: `Bearer ${OPENAI_API_KEY}`,
-    "Content-Type": "application/json"
-  };
-  const body = {
-    model: "gpt-4",
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: prompt }
-    ]
-  };
-  const res = await axios.post(url, body, { headers });
-  return res.data.choices[0].message.content;
-};
+  const body = { model, messages: [{ role: "user", content: prompt }], max_tokens };
+  const headers = { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" };
+  const resp = await axios.post(url, body, { headers, timeout: 15000 });
+  const text = resp?.data?.choices?.[0]?.message?.content || JSON.stringify(resp?.data);
+  return { ok: true, text: String(text) };
+}
 
-exports.askGeneral = async (prompt) => {
-  try {
-    return await ask(prompt, "You are BETRIX, a friendly sports-tech assistant. Respond with emojis and brand tone.");
-  } catch (e) {
-    console.error("OpenAI error:", e.message);
-    return "⚠️ BETRIX is upgrading its brain. Try again shortly.";
-  }
-};
+function stubReply(prompt) {
+  const t = (prompt || "").toString().toLowerCase();
+  if (!t) return "I didn't get that. Ask me about fixtures, odds, or tips.";
+  if (/\bhello|hi|hey\b/.test(t)) return "Hello! BETRIX here � limited mode (stub). Ask about odds or fixtures.";
+  if (/\bping\b/.test(t)) return "pong (stub)";
+  if (/\b(odds|fixture|match|score)\b/.test(t)) return "Stubbed matches: Team A vs Team B; Team C vs Team D.";
+  return "BETRIX (stub): I'm currently running in fallback mode. Set OPEN_ROUTER_KEY to enable live AI.";
+}
 
-exports.askFootball = async (prompt) => {
-  try {
-    return await ask(prompt, "You are BETRIX, an expert in football odds, fixtures, and match analysis. Respond with stats, emojis, and betting psychology.");
-  } catch (e) {
-    console.error("OpenAI error:", e.message);
-    return "⚽ BETRIX is reloading match data. Please retry in a moment.";
+/**
+ * Public API: ask(prompt, opts)
+ * Returns { ok:true, text: string } on success, or { ok:false, error } on expected failures.
+ */
+async function ask(prompt, opts = {}) {
+  // If explicitly forcing stub, return stub
+  if (USE_STUB_AI) {
+    return { ok: true, text: stubReply(prompt) };
   }
-};
+
+  if (OPEN_ROUTER_KEY) {
+    try {
+      return await callOpenRouter(prompt, opts);
+    } catch (err) {
+      console.error("OpenRouter error:", err && err.response ? err.response.status : err && err.message ? err.message : err);
+      // fallthrough to try OpenAI if available
+    }
+  }
+
+  if (OPENAI_API_KEY) {
+    try {
+      return await callOpenAI(prompt, opts);
+    } catch (err) {
+      console.error("OpenAI error:", err && err.response ? err.response.status : err && err.message ? err.message : err);
+      return { ok: false, error: "ai-provider-failed" };
+    }
+  }
+
+  // No provider keys available � final fallback stub
+  return { ok: true, text: stubReply(prompt) };
+}
+
+module.exports = { ask };
