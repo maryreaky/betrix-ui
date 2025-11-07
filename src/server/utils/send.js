@@ -18,20 +18,13 @@
     if (typeof globalThis !== "undefined") { globalThis.__BTX_SKIP_TELEGRAM = true; }
   }
 })();
-/**
- * Guard: ensure TELEGRAM_BOT_TOKEN present and looks valid.
- * If missing or clearly invalid, log and return a resolved promise to avoid Axios 404.
- */
-if (!process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN.length < 20) {
-  console.error("TELEGRAM_BOT_TOKEN missing or invalid in env. Outgoing Telegram requests will be skipped.");
-  // Export a no-op send function if module uses named exports; otherwise the functions below will still exist.
-}
 const axios = require("axios");
-const BOT_TOKEN = process.env.BOT_TOKEN;
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
-exports.sendText = async (chatId, text) => {
+exports.sendText = async (chatId, text) => { if (globalThis.__BTX_SKIP_TELEGRAM) { console.error("Skipping sendText: TELEGRAM_BOT_TOKEN not set"); return Promise.resolve({ ok: false, reason: "missing-telegram-token" }); }
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
   console.log("Sending to Telegram:", { chatId, text });
-  await axios.post(url, { chat_id: chatId, text });
+  try { await axios.post(url, { chat_id: chatId, text }); } catch (e) { console.error("Telegram send error:", e && e.response ? e.response.status : e && e.message ? e.message : e); throw e; }
 };
+
 
