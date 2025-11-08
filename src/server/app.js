@@ -1,24 +1,26 @@
-﻿/* minimal safe src/server/app.js — guarantees /admin/webhook/set exists */
+﻿// src/server/app.js (minimal factory with guaranteed inline webhook POST)
+// NOTE: this file is intentionally small and safe to ensure /admin/webhook/set exists.
 const express = require('express');
 
-function ensureRouter(factoryOrRouter) {
+function ensureRouter(factoryOrRouter, cfg){
   try {
-    if (!factoryOrRouter) return (req, res, next) => next();
+    if (!factoryOrRouter) return (req,res,next)=> next();
     if (typeof factoryOrRouter === 'function') {
-      try { const maybe = factoryOrRouter(); if (maybe && (typeof maybe === 'function' || maybe.stack)) return maybe; } catch(e){}
+      try { const maybe = factoryOrRouter(cfg); if (maybe && (typeof maybe === 'function' || maybe.stack)) return maybe; } catch(e){}
+      try { const maybe2 = factoryOrRouter(); if (maybe2 && (typeof maybe2 === 'function' || maybe2.stack)) return maybe2; } catch(e){}
       return factoryOrRouter;
     }
-    return (req, res, next) => next();
-  } catch (e) {
-    return (req, res, next) => next();
+    return (req,res,next)=> next();
+  } catch(e){
+    return (req,res,next)=> next();
   }
 }
 
-function createServer() {
+function createServer(cfg){
   const app = express();
   app.use(express.json({ limit: '64kb' }));
 
-  // Inline guaranteed admin webhook setter
+  // INLINE: guaranteed POST /admin/webhook/set route (self-contained)
   app.post('/admin/webhook/set', async (req, res) => {
     try {
       const adminKey = String(req.get('x-admin-key') || '');
@@ -26,18 +28,18 @@ function createServer() {
         return res.status(401).json({ ok: false, error: 'unauthorized' });
       }
 
+      const https = require('https');
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
-      const webhookUrl = process.env.WEBHOOK_URL || `${process.env.PROTOCOL || 'https'}://${process.env.HOST || process.env.RENDER_INTERNAL_HOSTNAME || ''}/webhook/telegram`;
+      const webhookUrl = process.env.WEBHOOK_URL || \\://\/webhook/telegram\;
 
       if (!botToken || !webhookUrl) {
         return res.status(200).json({ ok: true, status: 'noop', botTokenPresent: !!botToken, webhookUrlPresent: !!webhookUrl });
       }
 
-      const https = require('https');
       const payload = JSON.stringify({ url: webhookUrl });
       const options = {
         hostname: 'api.telegram.org',
-        path: `/bot${botToken}/setWebhook`,
+        path: \/bot\/setWebhook\,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
         timeout: 15000
@@ -47,7 +49,7 @@ function createServer() {
         let data = '';
         resp.on('data', (c) => data += c);
         resp.on('end', () => {
-          try { return res.status(200).json(JSON.parse(data)); } catch (e) { return res.status(200).send(data); }
+          try { return res.status(200).json(JSON.parse(data)); } catch(e) { return res.status(200).send(data); }
         });
       });
       reqp.on('error', (err) => res.status(500).json({ ok: false, error: String(err) }));
@@ -58,14 +60,17 @@ function createServer() {
     }
   });
 
-  // safe requires / mounts (no crashing)
+  // safe requires — fallbacks if missing
+  let webhookRouter = null;
   let admin = null;
   let adminWebhook = null;
+  try { webhookRouter = require('./routes/webhook'); } catch(e) { webhookRouter = null; }
   try { admin = require('./routes/admin'); } catch(e) { admin = null; }
   try { adminWebhook = require('./routes/admin-webhook'); } catch(e) { adminWebhook = null; }
 
-  app.use('/admin', ensureRouter(adminWebhook));
-  app.use('/admin', ensureRouter(admin));
+  app.use('/admin', ensureRouter(adminWebhook, cfg));
+  app.use('/admin', ensureRouter(admin, cfg));
+  app.use('/webhook', ensureRouter(webhookRouter, cfg));
 
   app.get('/health', (req, res) => res.status(200).json({ ok: true, ts: Date.now() }));
   app.get('/ready', (req, res) => {
