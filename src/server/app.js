@@ -21,6 +21,7 @@ function ensureRouter(factoryOrRouter, cfg){
 
 function createServer(cfg){
   const app = express();
+// mount admin-webhook route\napp.use('/admin', adminWebhook);
   app.use(express.json({ limit: '64kb' }));
 
   // safe requires — may be missing during early patching; fallback to noop router
@@ -68,3 +69,4 @@ function createServer(cfg){
 }
 
 module.exports = { createServer };
+
