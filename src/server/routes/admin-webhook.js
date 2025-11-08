@@ -16,10 +16,16 @@ router.post('/webhook/set', async (req, res) => {
   } catch (e) {}
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const webhookUrl = process.env.WEBHOOK_URL || ${process.env.PROTOCOL || 'https'}:///webhook/telegram;
+  const webhookUrl = process.env.WEBHOOK_URL ||
+    ${process.env.PROTOCOL || 'https'}:///webhook/telegram;
 
   if (!botToken || !webhookUrl) {
-    return res.status(400).json({ ok: false, error: 'missing TELEGRAM_BOT_TOKEN or WEBHOOK_URL', botToken: !!botToken, webhookUrl: !!webhookUrl });
+    return res.status(400).json({
+      ok: false,
+      error: 'missing TELEGRAM_BOT_TOKEN or WEBHOOK_URL',
+      botTokenPresent: !!botToken,
+      webhookUrlPresent: !!webhookUrl
+    });
   }
 
   const payload = JSON.stringify({ url: webhookUrl });
