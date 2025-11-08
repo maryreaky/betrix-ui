@@ -19,7 +19,29 @@ function createServer(cfg){
   const app = express();
   app.use(express.json({ limit: '64kb' }));
 
-  // safe requires — may be missing during early patching; fallback to noop router
+  
+  // defensive explicit POST for admin webhook (ensures /admin/webhook/set exists)
+  try {
+    let __adminWebhook = null;
+    try { __adminWebhook = require('./routes/admin-webhook'); } catch (e) { __adminWebhook = null; }
+    if (__adminWebhook) {
+      // if router is an Express Router, it has .handle; if it's a function, call directly
+      if (typeof __adminWebhook === 'function') {
+        app.post('/admin/webhook/set', (req, res, next) => {
+          try { return __adminWebhook(req, res, next); } catch (e) { return res.status(500).json({ ok:false, error: String(e) }); }
+        });
+      } else if (typeof __adminWebhook.handle === 'function') {
+        app.post('/admin/webhook/set', (req, res, next) => __adminWebhook.handle(req, res, next));
+      } else {
+        app.post('/admin/webhook/set', (req, res) => res.status(500).json({ ok:false, error:'admin-webhook present but unexpected shape' }));
+      }
+    } else {
+      app.post('/admin/webhook/set', (req, res) => res.status(404).json({ ok:false, error:'admin-webhook module not found on server' }));
+    }
+  } catch (e) {
+    app.post('/admin/webhook/set', (req, res) => res.status(500).json({ ok:false, error: String(e) }));
+  }
+// safe requires — may be missing during early patching; fallback to noop router
   let webhookRouter = null;
   let admin = null;
   let adminWebhook = null;
@@ -51,3 +73,4 @@ function createServer(cfg){
 }
 
 module.exports = { createServer };
+
