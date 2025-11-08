@@ -5,14 +5,10 @@ function ensureRouter(factoryOrRouter, cfg){
   try {
     if (!factoryOrRouter) return (req,res,next)=> next();
     if (typeof factoryOrRouter === 'function') {
-      // try factory(cfg)
       try { const maybe = factoryOrRouter(cfg); if (maybe && (typeof maybe === 'function' || maybe.stack)) return maybe; } catch(e){}
-      // try no-arg factory
       try { const maybe2 = factoryOrRouter(); if (maybe2 && (typeof maybe2 === 'function' || maybe2.stack)) return maybe2; } catch(e){}
-      // if the function itself is middleware/router, use it
       return factoryOrRouter;
     }
-    // not a function/router: noop
     return (req,res,next)=> next();
   } catch(e){
     return (req,res,next)=> next();
@@ -21,37 +17,22 @@ function ensureRouter(factoryOrRouter, cfg){
 
 function createServer(cfg){
   const app = express();
-// mount admin-webhook route  app.use(express.json({ limit: '64kb' }));
+  app.use(express.json({ limit: '64kb' }));
 
-  
-
-// mount admin-webhook before admin to avoid main admin swallowing subroutes\napp.use('/admin', ensureRouter(adminWebhook, cfg));
-app.use('/admin', ensureRouter(admin, cfg));
-// mount admin-webhook before admin to avoid primary admin swallowing routes\n// safe requires — may be missing during early patching; fallback to noop router
-  let webhookRouter, adminRouter;
+  // safe requires — may be missing during early patching; fallback to noop router
+  let webhookRouter = null;
+  let admin = null;
+  let adminWebhook = null;
   try { webhookRouter = require('./routes/webhook'); } catch(e) { webhookRouter = null; }
-  try { adminRouter = require('./routes/admin'); } catch(e) { adminRouter = null; }
+  try { admin = require('./routes/admin'); } catch(e) { admin = null; }
+  try { adminWebhook = require('./routes/admin-webhook'); } catch(e) { adminWebhook = null; }
 
-  // mount primary admin if present (preserve existing admin variable if used elsewhere)
-  try {
-    const admin = require('./routes/admin');
-    } catch(e) {
-    // If admin route missing, skip
-  }
-
-  // mount admin-webhook route if created by patch scripts
-  try {
-    const adminWebhook = require('./routes/admin-webhook');
-    } catch(e) {
-    // skip if missing
-  }
+  // mount admin-webhook before admin to avoid main admin swallowing subroutes
+  app.use('/admin', ensureRouter(adminWebhook, cfg));
+  app.use('/admin', ensureRouter(admin, cfg));
 
   // mount webhook route defensively
-  try {
-    app.use('/webhook', ensureRouter(webhookRouter, cfg));
-  } catch(e) {
-    // skip
-  }
+  app.use('/webhook', ensureRouter(webhookRouter, cfg));
 
   // health and ready endpoints
   app.get('/health', (req, res) => res.status(200).json({ ok: true, ts: Date.now() }));
@@ -70,5 +51,3 @@ app.use('/admin', ensureRouter(admin, cfg));
 }
 
 module.exports = { createServer };
-
-
