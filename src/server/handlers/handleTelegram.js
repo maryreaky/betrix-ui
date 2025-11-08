@@ -41,7 +41,7 @@ module.exports = async function handleTelegram(payload, cfg = {}) {
       }
     }
 
-    const sendUrl = ``https://api.telegram.org/bot${token}/${apiMethod}`;
+    const sendUrl = `https://api.telegram.org/bot${token}/${apiMethod}`;
     const sendPayload = { chat_id: chatId, text: reply };
     const sendResp = await axios.post(sendUrl, sendPayload);
     console.log("? Telegram reply sent:", sendResp.data);
@@ -49,6 +49,7 @@ module.exports = async function handleTelegram(payload, cfg = {}) {
     console.error("? Telegram handler error:", err.stack || err.message || err);
   }
 };
+
 
 
 

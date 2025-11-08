@@ -249,7 +249,7 @@ function parseOddsFromMarket(market) {
 // Telegram helpers
 async function sendTelegram(method, payload) {
   if (!BOT_TOKEN) { console.error('BOT_TOKEN missing'); return null; }
-  const res = await fetch(``https://api.telegram.org/bot${token}/${apiMethod}`
+  const res = await fetch(`https://api.telegram.org/bot${token}/${apiMethod}`
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -613,6 +613,7 @@ const { ask } = require('../utils/openai');
     return { statusCode: 500, body: 'Server error' };
   }
 };
+
 
 
 

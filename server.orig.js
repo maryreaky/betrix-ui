@@ -121,7 +121,7 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
         const sendReply = async (chat_id, textBody, extra) => {
           if (!token) { safeLog('BOT_TOKEN missing in env'); return; }
           try {
-            const resp = await fetch(``https://api.telegram.org/bot${token}/${apiMethod}`
+            const resp = await fetch(`https://api.telegram.org/bot${token}/${apiMethod}`
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(Object.assign({ chat_id, text: textBody }, extra || {}))
@@ -148,6 +148,7 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
 
 // __EOF_SAFE_FIX__ appended 2025-11-05T16:48:10
 try { module.exports = module.exports || {}; } catch(e) {} 
+
 
 
 
