@@ -23,7 +23,10 @@ function createServer(cfg){
   const app = express();
 // mount admin-webhook route  app.use(express.json({ limit: '64kb' }));
 
-  // safe requires — may be missing during early patching; fallback to noop router
+  
+// mount admin-webhook before admin to avoid primary admin swallowing routes\napp.use('/admin', ensureRouter(adminWebhook, cfg));
+app.use('/admin', ensureRouter(admin, cfg));
+// safe requires — may be missing during early patching; fallback to noop router
   let webhookRouter, adminRouter;
   try { webhookRouter = require('./routes/webhook'); } catch(e) { webhookRouter = null; }
   try { adminRouter = require('./routes/admin'); } catch(e) { adminRouter = null; }
@@ -31,16 +34,14 @@ function createServer(cfg){
   // mount primary admin if present (preserve existing admin variable if used elsewhere)
   try {
     const admin = require('./routes/admin');
-    app.use('/admin', ensureRouter(admin, cfg));
-  } catch(e) {
+    } catch(e) {
     // If admin route missing, skip
   }
 
   // mount admin-webhook route if created by patch scripts
   try {
     const adminWebhook = require('./routes/admin-webhook');
-    app.use('/admin', ensureRouter(adminWebhook, cfg));
-  } catch(e) {
+    } catch(e) {
     // skip if missing
   }
 
@@ -68,5 +69,6 @@ function createServer(cfg){
 }
 
 module.exports = { createServer };
+
 
 
