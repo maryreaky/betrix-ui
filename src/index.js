@@ -1,62 +1,50 @@
-﻿// Injected startup validations and global error handlers (hotfix)
-const fs = require('fs');
-const path = require('path');
-
-function ensureEnv() {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const webhook = process.env.WEBHOOK_URL || process.env.RENDER_EXTERNAL_URL && process.env.RENDER_EXTERNAL_URL + '/webhook/telegram' || null;
+﻿// Minimal robust bootstrap: immediate listen + background webhook set
+const log = (...a) => { try { console.info(...a); } catch(e) { console.log(...a); } };
+function ensureEnv(){
   const useStub = String(process.env.USE_STUB_AI || '').toLowerCase() === 'true';
-  if (!token && !useStub) {
-    console.error('STARTUP-FAIL: TELEGRAM_BOT_TOKEN is required unless USE_STUB_AI=true');
-    process.exit(1);
-  }
-  if (!webhook && !useStub) {
-    console.error('STARTUP-FAIL: WEBHOOK_URL (or RENDER_EXTERNAL_URL) required unless USE_STUB_AI=true');
-    process.exit(1);
-  }
-  // expose for other modules
-  process.env.WEBHOOK_URL = webhook || process.env.WEBHOOK_URL;
-  console.info('STARTUP: env validated; useStub=' + useStub);
+  if (!process.env.TELEGRAM_BOT_TOKEN && !useStub) { log('STARTUP-WARN: TELEGRAM_BOT_TOKEN not set'); }
+  log('STARTUP: env checked; useStub=' + useStub);
 }
-
-function installGlobalHandlers() {
-  process.on('uncaughtException', (err) => {
-    console.error('UNCAUGHT-EXCEPTION', err && (err.stack || err.message || err));
-  });
-  process.on('unhandledRejection', (reason) => {
-    console.error('UNHANDLED-REJECTION', reason && (reason.stack || reason.message || reason));
-  });
-  // optional: graceful shutdown on SIGTERM
-  process.on('SIGTERM', () => {
-    console.info('SIGTERM received, exiting gracefully');
-    process.exit(0);
-  });
+function setWebhookBackground(){
+  try {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const webhookUrl = process.env.WEBHOOK_URL || (process.env.RENDER_EXTERNAL_URL ? process.env.RENDER_EXTERNAL_URL + '/webhook/telegram' : null);
+    if (!token || !webhookUrl) { log("WEBHOOK-BOOT-SKIP", { token: !!token, webhook: !!webhookUrl }); return; }
+    (async ()=>{
+      try {
+        const https = require("https");
+        const body = JSON.stringify({ url: webhookUrl });
+        const u = new URL("https://api.telegram.org/bot" + token + "/setWebhook");
+        const opts = { hostname: u.hostname, path: u.pathname + (u.search||""), method: "POST", port: u.port||443, headers: { "Content-Type":"application/json", "Content-Length": Buffer.byteLength(body) }, timeout: 5000 };
+        const req = https.request(opts, (res)=>{ let raw=""; res.setEncoding("utf8"); res.on("data", d=> raw+=d); res.on("end", ()=> { try { log("WEBHOOK-BOOT-SET", JSON.parse(raw)); } catch(e){ log("WEBHOOK-BOOT-SET-RAW", raw); } }); });
+        req.on("error", (e)=> log("WEBHOOK-BOOT-ERR", e && e.message));
+        req.on("timeout", ()=> { req.destroy(); log("WEBHOOK-BOOT-TIMEOUT"); });
+        req.write(body); req.end();
+      } catch(e) { log("WEBHOOK-BOOT-EX", e && e.message); }
+    })();
+  } catch(e) { log("WEBHOOK-SPAWN-ERR", e && e.message); }
 }
-
-ensureEnv();
-installGlobalHandlers();
-
-// Continue with original bootstrap if present
-try {
-  // Load server factory from src/server/app (correct relative path) and start listening
-  const serverModule = require('./server/app');
-  if (serverModule && typeof serverModule.createServer === 'function') {
-    const app = serverModule.createServer({});
-    const port = process.env.PORT || 10000;
-    if (app && typeof app.listen === 'function') {
-      app.listen(port, () => console.info('SERVER: listening on port', port));
-    } else if (app && app.callback && typeof app.callback === 'function') {
-      app.callback().listen(port, () => console.info('SERVER(KOA): listening on port', port));
+async function boot(){
+  ensureEnv();
+  try {
+    const serverModule = require('./server/app');
+    let app;
+    if (serverModule && typeof serverModule.createServer === "function") {
+      app = serverModule.createServer({});
+    } else if (typeof serverModule === "function") {
+      app = serverModule();
     } else {
-      console.error('BOOT-FAIL: createServer returned non-listenable object');
-      process.exit(1);
+      log("BOOT-FAIL: server module missing createServer or function"); process.exit(1);
     }
-  } else {
-    console.error('BOOT-FAIL: src/server/app did not export createServer');
-    process.exit(1);
-  }
-} catch (e) {
-  console.error('INDEX-BOOT-ERROR', e && (e.stack || e.message || e));
-  process.exit(1);
+    const port = process.env.PORT || 10000;
+    if (app && typeof app.listen === "function") {
+      app.listen(port, ()=> { log("SERVER: listening on port", port); });
+    } else if (app && app.callback && typeof app.callback === "function") {
+      app.callback().listen(port, ()=> { log("SERVER(KOA): listening on port", port); });
+    } else {
+      log("BOOT-FAIL: returned server is not listenable"); process.exit(1);
+    }
+    setWebhookBackground();
+  } catch(e) { log("BOOT-EX", e && (e.stack || e.message)); process.exit(1); }
 }
-
+boot();
