@@ -1,15 +1,4 @@
-﻿/* __STARTUP_PROBE__ - inserted by admin for diagnostics */
-console.log("SERVER STARTUP PROBE: pid=" + process.pid + " node=" + process.version + " cwd=" + process.cwd());
-try {
-  const mask = (k,v) => { if (k && (k.toLowerCase().includes("token") || k.toLowerCase().includes("secret") || k.toLowerCase().includes("password") || k.toLowerCase().includes("key"))) return "REDACTED"; return v; };
-  const important = ["BOT_TOKEN","DATABASE_URL","PORT"];
-  const envOut = important.map(k => k + "=" + (process.env[k] ? mask(k,process.env[k]) : "<missing>")).join(" | ");
-  console.log("ENV CHECK: " + envOut);
-} catch(e){ console.error("PROBE ENV ERR", e); }
-process.on('uncaughtException', (err) => { console.error("UNCAUGHT EXCEPTION:", err && err.stack ? err.stack : err); process.exitCode = 1; });
-process.on('unhandledRejection', (r) => { console.error("UNHANDLED REJECTION:", r && r.stack ? r.stack : r); process.exitCode = 1; });
-/* end probe */
-const express = require('express');
+﻿const express = require('express');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
