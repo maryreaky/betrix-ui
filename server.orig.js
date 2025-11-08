@@ -89,7 +89,7 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
 
     // ---------- Background worker for processing updates ----------
         // Background worker for processing updates
-        setImmediate(() => { (async () => {
+        setImmediate(async () => {
           try {
             const update = req.body;
             safeLog('process update', JSON.stringify({ type: update?.message ? 'message' : 'other', from: update?.message?.from?.id }));
@@ -110,7 +110,7 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
 
             // Initialize user record
             if (!global.__BETRIX_USERS__.has(fromId)) {
-              global.__BETRIX_USERS__.set(fromId, { chatId, createdAt: Date.now(), state: 'idle' })() });
+              global.__BETRIX_USERS__.set(fromId, { chatId, createdAt: Date.now(), state: 'idle' });
               safeLog('created user', fromId);
             }
             const user = global.__BETRIX_USERS__.get(fromId);
@@ -178,6 +178,7 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
 
 // __EOF_SAFE_FIX__ appended 2025-11-05T16:48:10
 try { module.exports = module.exports || {}; } catch(e) {} 
+
 
 
 
