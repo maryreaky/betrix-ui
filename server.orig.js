@@ -88,44 +88,74 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
     const safeLog = (...a) => { console.log(...a); };
 
     // ---------- Background worker for processing updates ----------
-    setImmediate(async () => {
-      try {
-        const update = req.body;
-        safeLog('process update', JSON.stringify({ type: update?.message ? 'message' : 'other', from: update?.message?.from?.id }));
+        // Background worker for processing updates
+        setImmediate(async () => {
+          try {
+            const update = req.body;
+            safeLog('process update', JSON.stringify({ type: update?.message ? 'message' : 'other', from: update?.message?.from?.id }));
 
-        // Support only message updates for now
-        const msg = update?.message;
-        if (!msg) {
-          safeLog('non-message update; ignoring');
-          return;
-        }
+            // Support only message updates for now
+            const msg = update?.message;
+            if (!msg) {
+              safeLog('non-message update; ignoring');
+              return;
+            }
 
-        const chatId = msg.chat?.id;
-        const fromId = msg.from?.id;
-        if (!chatId || !fromId) {
-          safeLog('missing chatId/fromId; skipping');
-          return;
-        }
+            const chatId = msg.chat?.id;
+            const fromId = msg.from?.id;
+            if (!chatId || !fromId) {
+              safeLog('missing chatId/fromId; skipping');
+              return;
+            }
 
-        // Initialize user record
-        if (!global.__BETRIX_USERS__.has(fromId)) {
-          global.__BETRIX_USERS__.set(fromId, { chatId, createdAt: Date.now(), state: 'idle' });
-          safeLog('created user', fromId);
-        }
-        const user = global.__BETRIX_USERS__.get(fromId);
+            // Initialize user record
+            if (!global.__BETRIX_USERS__.has(fromId)) {
+              global.__BETRIX_USERS__.set(fromId, { chatId, createdAt: Date.now(), state: 'idle' });
+              safeLog('created user', fromId);
+            }
+            const user = global.__BETRIX_USERS__.get(fromId);
 
-        // Normalize incoming text
-        const text = (msg.text || '').trim();
+            // Normalize incoming text
+            const text = (msg.text || '').trim();
 
-        // ---------- Command router ----------
-const sendReply = async (chat_id, textBody, extra) => {
-  if (!token) { safeLog('BOT_TOKEN missing in env'); return; }
-  try {
-    const resp = await fetch(`https://api.telegram.org/bot${token}/${apiMethod}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.assign({ chat_id, text: textBody }, extra || {}))
-    });
+            // ---------- Command router ----------
+            const sendReply = async (chat_id, textBody, extra) => {
+              if (!token) { safeLog('BOT_TOKEN missing in env'); return; }
+              try {
+                const resp = await fetch(`https://api.telegram.org/bot${token}/${apiMethod}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(Object.assign({ chat_id, text: textBody }, extra || {}))
+                });
+                let json = null;
+                const _txt = await resp.text().catch(e => "" + e);
+                try {
+                  json = JSON.parse(_txt);
+                } catch (e2) {
+                  json = { parseError: true, text: _txt };
+                }
+                console.log('tg sendMessage', resp.status, JSON.stringify(json));
+              } catch (err) {
+                console.error('tg outgoing error', err && err.stack ? err.stack : err);
+              }
+            };
+
+            // Example router: echo or /ping
+            try {
+              if (text === '/ping') {
+                await sendReply(chatId, 'pong');
+              } else {
+                // Default echo for now — replace with real command router
+                await sendReply(chatId, 'Received: ' + text);
+              }
+            } catch (routerErr) {
+              safeLog('router error', routerErr && routerErr.stack ? routerErr.stack : routerErr);
+            }
+
+          } catch (workerErr) {
+            console.error('webhook background worker error', workerErr && workerErr.stack ? workerErr.stack : workerErr);
+          }
+        });
     let json = null;
     const _txt = await resp.text().catch(e => "" + e);
     try {
