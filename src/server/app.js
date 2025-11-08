@@ -31,7 +31,7 @@ function createServer(cfg){
 
       const https = require('https');
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
-      const webhookUrl = process.env.WEBHOOK_URL || \\://\/webhook/telegram\;
+  const webhookUrl = process.env.WEBHOOK_URL || ${process.env.PROTOCOL || 'https'}:///webhook/telegram;
 
       if (!botToken || !webhookUrl) {
         return res.status(200).json({ ok: true, status: 'noop', botTokenPresent: !!botToken, webhookUrlPresent: !!webhookUrl });
@@ -113,5 +113,6 @@ function createServer(cfg){
 }
 
 module.exports = { createServer };
+
 
 
