@@ -1,4 +1,5 @@
-﻿// Robust createServer factory for Express
+﻿// src/server/app.js (minimal factory with guaranteed inline webhook POST)
+// NOTE: this file is intentionally small and safe to ensure /admin/webhook/set exists.
 const express = require('express');
 
 function ensureRouter(factoryOrRouter, cfg){
@@ -19,9 +20,7 @@ function createServer(cfg){
   const app = express();
   app.use(express.json({ limit: '64kb' }));
 
-  
-  
-  // INLINE: guaranteed POST /admin/webhook/set route
+  // INLINE: guaranteed POST /admin/webhook/set route (self-contained)
   app.post('/admin/webhook/set', async (req, res) => {
     try {
       const adminKey = String(req.get('x-admin-key') || '');
@@ -31,7 +30,7 @@ function createServer(cfg){
 
       const https = require('https');
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const webhookUrl = process.env.WEBHOOK_URL || ${process.env.PROTOCOL || 'https'}:///webhook/telegram;
+      const webhookUrl = process.env.WEBHOOK_URL || \\://\/webhook/telegram\;
 
       if (!botToken || !webhookUrl) {
         return res.status(200).json({ ok: true, status: 'noop', botTokenPresent: !!botToken, webhookUrlPresent: !!webhookUrl });
@@ -60,28 +59,8 @@ function createServer(cfg){
       return res.status(500).json({ ok: false, error: String(err) });
     }
   });
-// defensive explicit POST for admin webhook (ensures /admin/webhook/set exists)
-  try {
-    let __adminWebhook = null;
-    try { __adminWebhook = require('./routes/admin-webhook'); } catch (e) { __adminWebhook = null; }
-    if (__adminWebhook) {
-      // if router is an Express Router, it has .handle; if it's a function, call directly
-      if (typeof __adminWebhook === 'function') {
-        app.post('/admin/webhook/set', (req, res, next) => {
-          try { return __adminWebhook(req, res, next); } catch (e) { return res.status(500).json({ ok:false, error: String(e) }); }
-        });
-      } else if (typeof __adminWebhook.handle === 'function') {
-        app.post('/admin/webhook/set', (req, res, next) => __adminWebhook.handle(req, res, next));
-      } else {
-        app.post('/admin/webhook/set', (req, res) => res.status(500).json({ ok:false, error:'admin-webhook present but unexpected shape' }));
-      }
-    } else {
-      app.post('/admin/webhook/set', (req, res) => res.status(404).json({ ok:false, error:'admin-webhook module not found on server' }));
-    }
-  } catch (e) {
-    app.post('/admin/webhook/set', (req, res) => res.status(500).json({ ok:false, error: String(e) }));
-  }
-// safe requires — may be missing during early patching; fallback to noop router
+
+  // safe requires — fallbacks if missing
   let webhookRouter = null;
   let admin = null;
   let adminWebhook = null;
@@ -89,14 +68,10 @@ function createServer(cfg){
   try { admin = require('./routes/admin'); } catch(e) { admin = null; }
   try { adminWebhook = require('./routes/admin-webhook'); } catch(e) { adminWebhook = null; }
 
-  // mount admin-webhook before admin to avoid main admin swallowing subroutes
   app.use('/admin', ensureRouter(adminWebhook, cfg));
   app.use('/admin', ensureRouter(admin, cfg));
-
-  // mount webhook route defensively
   app.use('/webhook', ensureRouter(webhookRouter, cfg));
 
-  // health and ready endpoints
   app.get('/health', (req, res) => res.status(200).json({ ok: true, ts: Date.now() }));
   app.get('/ready', (req, res) => {
     try {
@@ -113,6 +88,3 @@ function createServer(cfg){
 }
 
 module.exports = { createServer };
-
-
-
