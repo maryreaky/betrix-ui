@@ -53,7 +53,9 @@ const PORT = parseInt(process.env.PORT || '(process.env.PORT || (process.env.POR
 const server = http.createServer(app);
 server.headersTimeout = 60000;
 server.requestTimeout = 60000;
-server.listen(PORT, '0.0.0.0', () => console.log('Server listening on 0.0.0.0:' + PORT));
+if (require.main === module) {
+  server.listen(PORT, '0.0.0.0', () => console.log('Server listening on 0.0.0.0:' + PORT));
+}
 
 ' + $marker + '
 // Diagnostic webhook handler replaced with production bot architecture
@@ -166,6 +168,7 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
 
 // __EOF_SAFE_FIX__ appended 2025-11-05T16:48:10
 try { module.exports = module.exports || {}; } catch(e) {} 
+
 
 
 
