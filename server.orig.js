@@ -156,18 +156,6 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
             console.error('webhook background worker error', workerErr && workerErr.stack ? workerErr.stack : workerErr);
           }
         });
-    let json = null;
-    const _txt = await resp.text().catch(e => "" + e);
-    try {
-      json = JSON.parse(_txt);
-    } catch (e2) {
-      json = { parseError: true, text: _txt };
-    }
-    console.log('tg sendMessage', resp.status, JSON.stringify(json));
-  } catch (err) {
-    console.error('tg outgoing error', err && err.stack ? err.stack : err);
-  }
-};
   } catch (err) {
     console.error('webhook handler top error', err && err.stack ? err.stack : err);
     try { res.status(200).send('ok') } catch {}
