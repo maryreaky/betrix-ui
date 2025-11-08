@@ -24,9 +24,10 @@ function createServer(cfg){
 // mount admin-webhook route  app.use(express.json({ limit: '64kb' }));
 
   
-// mount admin-webhook before admin to avoid primary admin swallowing routes\napp.use('/admin', ensureRouter(adminWebhook, cfg));
+
+// mount admin-webhook before admin to avoid main admin swallowing subroutes\napp.use('/admin', ensureRouter(adminWebhook, cfg));
 app.use('/admin', ensureRouter(admin, cfg));
-// safe requires — may be missing during early patching; fallback to noop router
+// mount admin-webhook before admin to avoid primary admin swallowing routes\n// safe requires — may be missing during early patching; fallback to noop router
   let webhookRouter, adminRouter;
   try { webhookRouter = require('./routes/webhook'); } catch(e) { webhookRouter = null; }
   try { adminRouter = require('./routes/admin'); } catch(e) { adminRouter = null; }
@@ -69,6 +70,7 @@ app.use('/admin', ensureRouter(admin, cfg));
 }
 
 module.exports = { createServer };
+
 
 
 
