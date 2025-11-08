@@ -43,3 +43,18 @@ function ensureRouter(factoryOrRouter, cfg){
 module.exports = { createServer };
 
 
+
+  
+// Injected readiness endpoint
+app.get('/ready', (req, res) => {
+  try {
+    const useStub = String(process.env.USE_STUB_AI || '').toLowerCase() === 'true';
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    if (!token && !useStub) {
+      return res.status(503).json({ ready: false, reason: 'missing TELEGRAM_BOT_TOKEN or USE_STUB_AI=true' });
+    }
+    return res.status(200).json({ ready: true, webhook: process.env.WEBHOOK_URL || null });
+  } catch (e) {
+    return res.status(500).json({ ready: false, error: String(e && (e.message || e)) });
+  }
+});
