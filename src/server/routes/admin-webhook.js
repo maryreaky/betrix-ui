@@ -14,7 +14,9 @@ router.post('/webhook/set', async (req, res) => {
     if (adminModule && typeof adminModule.setWebhook === 'function') {
       return adminModule.setWebhook(req, res);
     }
-  } catch (e) {}
+  } catch (e) {
+    // ignore and continue with fallback
+  }
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const webhookUrl = process.env.WEBHOOK_URL ||
