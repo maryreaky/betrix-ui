@@ -1,12 +1,22 @@
 ﻿const express = require('express');
 const app = express();
+
 app.use(express.json({ limit: '200kb' }));
+
 try {
   const routes = require('./server/routes');
   if (typeof routes === 'function') routes(app);
-} catch (e) {}
+} catch (e) {
+  try {
+    const webhook = require('./server/handlers/webhook');
+    if (typeof webhook === 'function') app.post('/webhook/telegram', webhook);
+  } catch (e2) {}
+}
+
 app.get('/health', (_req, res) => res.status(200).send('OK'));
+
 const port = process.env.PORT ? Number(process.env.PORT) : 10000;
+
 if (require.main === module) {
   app.listen(port, () => console.log(`SERVER: listening on port ${port}`));
 } else {
