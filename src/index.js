@@ -1,4 +1,5 @@
-﻿// Minimal robust bootstrap: immediate listen + background webhook set
+﻿require('./runtime-env-check');
+// Minimal robust bootstrap: immediate listen + background webhook set
 const log = (...a) => { try { console.info(...a); } catch(e) { console.log(...a); } };
 function ensureEnv(){
   const useStub = String(process.env.USE_STUB_AI || '').toLowerCase() === 'true';
@@ -48,3 +49,4 @@ async function boot(){
   } catch(e) { log("BOOT-EX", e && (e.stack || e.message)); process.exit(1); }
 }
 boot();
+
