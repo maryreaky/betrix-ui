@@ -18,7 +18,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chat_id: chatId, text: replyText })
         }).then(r => r.json());
-        console.log("OUTGOING-RESPONSE", { ok: resp.ok ?? resp.success, result: resp.result ? true : false, error: resp.description || null });
+        console.log("OUTGOING-RESPONSE", { ok: resp.ok ?? resp.success, description: resp.description || null });
       } catch (err) { console.error("WEBHOOK-PROCESS-ERR", err && (err.stack || err.message)); }
     })();
   } catch (err) {
