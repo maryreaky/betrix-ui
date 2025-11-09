@@ -1,48 +1,32 @@
-﻿  // resilient dedupe middleware startup (node-redis v4)
-  const { createClient } = require('redis');
+﻿/*
+ * src/server/middleware/dedupe.js
+ * Redis-backed idempotency guard for incoming updates
+ * Requires REDIS_URL environment variable (redis://...)
+ */
+const { createClient } = require("redis");
+const redisUrl = process.env.REDIS_URL || null;
+let client;
+if (redisUrl) {
+  client = createClient({ url: redisUrl });
+  client.connect().catch(err => console.error("REDIS-CONNECT-ERR", err && err.message));
+} else {
+  console.warn("DEDPUPE-MW: REDIS_URL not set; dedupe disabled");
+}
 
-  function encodePasswordInUrl(rawUrl) {
+module.exports = function dedupeMiddleware(ttlSeconds = 60) {
+  return async (req, res, next) => {
+    const updateId = req.body?.update_id;
+    if (!updateId || !client) return next();
     try {
-      const u = new URL(rawUrl);
-      if ((u.username === '' || u.username === null) && u.password) {
-        u.password = encodeURIComponent(u.password);
-      }
-      return u.toString();
-    } catch (e) {
-      return rawUrl;
+      const key = `upd:${updateId}`;
+      const added = await client.set(key, "1", { NX: true, EX: ttlSeconds });
+      if (added) return next();
+      // duplicate - ack and do nothing
+      console.log("DEDUPED update_id", updateId);
+      return res.status(200).send("OK");
+    } catch (err) {
+      console.error("DEDPUPE-ERR", err && err.message);
+      return next();
     }
-  }
-
-  (async function initDedupe() {
-    const rawUrl = process.env.REDIS_URL;
-    if (!rawUrl || (process.env.DEDUPE_ENABLED && process.env.DEDUPE_ENABLED.toLowerCase() === 'false')) {
-      console.log('DEDPUPE-MW: REDIS_URL not set or dedupe disabled; dedupe disabled');
-      global.dedupeClient = null;
-      return;
-    }
-
-    const safeUrl = encodePasswordInUrl(rawUrl);
-    const client = createClient({
-      url: safeUrl,
-      socket: {
-        reconnectStrategy: attempts => Math.min(1000 + attempts * 200, 5000)
-      }
-    });
-
-    client.on('error', err => {
-      console.error('DEDPUPE-MW: redis error', err && err.message);
-    });
-
-    client.on('connect', () => console.log('DEDPUPE-MW: connecting...'));
-    client.on('ready', () => console.log('DEDPUPE-MW: connected'));
-    client.on('reconnecting', () => console.log('DEDPUPE-MW: reconnecting'));
-    client.on('end', () => console.log('DEDPUPE-MW: connection ended'));
-
-    try {
-      await client.connect();
-      global.dedupeClient = client;
-    } catch (e) {
-      console.error('DEDPUPE-MW: connection failed; dedupe disabled', e && e.message);
-      global.dedupeClient = null;
-    }
-  })();
+  };
+};
