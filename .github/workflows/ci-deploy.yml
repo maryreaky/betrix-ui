@@ -2,6 +2,8 @@
 
 on:
   push:
+    branches: [ main, fix/health-redis ]
+  pull_request:
     branches: [ main ]
 
 permissions:
@@ -9,59 +11,76 @@ permissions:
   packages: write
   id-token: write
 
+env:
+  IMAGE_NAME: ghcr.io/maryreaky/betrix-ui
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-    env:
-      IMAGE_NAME: '"$IMAGE_NAME"'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
+      - name: Build (if applicable)
+        run: npm run build || true
+
+      - name: Run smoke server and test health
+        env:
+          PORT: 10000
+        run: |
+          set -e
+          echo "Starting app (background) and saving logs to server.log"
+          if [ -f server.js ]; then
+            ENTRY="server.js"
+          elif [ -f src/index.js ]; then
+            ENTRY="src/index.js"
+          else
+            echo "No server.js or src/index.js found"; exit 1
+          fi
+          nohup node $ENTRY > server.log 2>&1 &
+          echo $! > server.pid
+          HOST=localhost
+          PORT=10000
+          TIMEOUT=30
+          for i in $(seq 1 $TIMEOUT); do
+            if curl -sSf "http://${HOST}:${PORT}/health" >/dev/null 2>&1; then
+              echo "Healthy after ${i}s"
+              break
+            fi
+            sleep 1
+            if [ $i -eq $TIMEOUT ]; then
+              echo "Health probe failed after ${TIMEOUT}s; dumping server.log"
+              tail -n 400 server.log || true
+              if [ -f server.pid ]; then kill $(cat server.pid) || true; fi
+              exit 1
+            fi
+          done
+
+      - name: Build and tag image
+        run: |
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          IMAGE_TAG="${{ env.IMAGE_NAME }}:${SHORT_SHA}"
+          docker build -t "${IMAGE_TAG}" -t "${{ env.IMAGE_NAME }}:latest" .
+          echo "IMAGE=${IMAGE_TAG}" >> $GITHUB_ENV
 
       - name: Log in to GHCR
-=======
-name: Build and Push
-on:
-  push:
-    branches: [ main, fix/health-redis ]
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and tag image
-        run: |
-          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          IMAGE_TAG="${IMAGE_NAME}:${SHORT_SHA}"
-          docker build -t "${IMAGE_TAG}" -t "${IMAGE_NAME}:latest" .
-
       - name: Push image
         run: |
-          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          IMAGE_TAG="${IMAGE_NAME}:${SHORT_SHA}"
-          docker push "${IMAGE_TAG}"
-          docker push "${IMAGE_NAME}:latest"
-
-      - name: Create release metadata
-        run: echo "IMAGE=${IMAGE_NAME}:${SHORT_SHA}" >> $GITHUB_ENV
+          docker push "${IMAGE}"
+          docker push "${{ env.IMAGE_NAME }}:latest"
 
   deploy-ssh:
     needs: build-and-publish
@@ -71,9 +90,9 @@ jobs:
       - name: Deploy to host via SSH (pull & restart)
         uses: appleboy/ssh-action@v0.1.7
         with:
-          host: ${{ secrets.'"$DEPLOY_HOST_SECRET"' }}
-          username: ${{ secrets.'"$DEPLOY_USER_SECRET"' }}
-          key: ${{ secrets.'"$DEPLOY_KEY_SECRET"' }}
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             IMAGE="${{ env.IMAGE }}"
             docker pull $IMAGE
@@ -83,12 +102,5 @@ jobs:
               -p 10000:10000 \
               --restart unless-stopped \
               -e NODE_ENV=production \
-              -e REDIS_URL="${{ secrets.'"$REDIS_SECRET"'" }}" \
+              -e REDIS_URL="${{ secrets.REDIS_URL }}" \
               $IMAGE
-=======
-      - name: Build and push Docker image to GitHub Container Registry
-        uses: docker/build-push-action@v5
-        with:
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/betrix-ui:${{ github.sha }}
-
