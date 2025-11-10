@@ -35,12 +35,12 @@ jobs:
         with:
           registry: ghcr.io
           username: maryreaky
-          password: ${{ secrets.GHCR_PAT }}
+          password: ${{ ${{ secrets.GHCR_PAT }} }}
 
       - name: Explicit docker login and debug
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         run: |
-          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u maryreaky --password-stdin || true
+          echo "${{ ${{ secrets.GHCR_PAT }} }}" | docker login ghcr.io -u maryreaky --password-stdin || true
           echo "---- docker config ----"
           cat ~/.docker/config.json || true
           echo "-----------------------"
@@ -53,10 +53,10 @@ jobs:
           platforms: linux/amd64
           push: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
           tags: ${{ env.IMAGE_NAME }}:${{ env.TAG }}
-          github-token: ${{ secrets.GHCR_PAT }}
+          github-token: ${{ ${{ secrets.GHCR_PAT }} }}
         secrets: |
-          GIT_AUTH_TOKEN=${{ secrets.GHCR_PAT }}
-          REGISTRY_TOKEN=${{ secrets.GHCR_PAT }}
+          GIT_AUTH_TOKEN=${{ ${{ secrets.GHCR_PAT }} }}
+          REGISTRY_TOKEN=${{ ${{ secrets.GHCR_PAT }} }}
 
       - name: Finish
         run: echo "ci-build workflow written by one-shot script"
