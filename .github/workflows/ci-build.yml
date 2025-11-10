@@ -10,7 +10,6 @@ on:
 permissions:
   contents: read
   packages: write
-  id-token: write
 
 jobs:
   build:
@@ -25,18 +24,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Setup QEMU
-        uses: docker/setup-qemu-action@v2
-
       - name: Setup buildx
         uses: docker/setup-buildx-action@v2
         with:
           install: true
-
-      - name: Setup Node 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
 
       - name: Login to GHCR (docker/login-action)
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
@@ -46,15 +37,15 @@ jobs:
           username: maryreaky
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Explicit docker login to ensure builder auth (debug)
+      - name: Explicit docker login (ensure builder sees auth)
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         run: |
-          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u maryreaky --password-stdin || true
+          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u maryreaky --password-stdin
           echo "---- docker config ----"
           cat ~/.docker/config.json || true
           echo "-----------------------"
 
-      - name: Build and push image (buildx) with local context and forwarded auth
+      - name: Build and push image (local context, forward PAT)
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -62,11 +53,9 @@ jobs:
           platforms: linux/amd64
           push: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
           tags: ${{ env.IMAGE_NAME }}:${{ env.TAG }}
-          github-token: ${{ secrets.GHCR_PAT }}
-          load: false
         secrets: |
           GIT_AUTH_TOKEN=${{ secrets.GHCR_PAT }}
           REGISTRY_TOKEN=${{ secrets.GHCR_PAT }}
 
-      - name: Result
-        run: echo "Build finished. push=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}"
+      - name: Finish
+        run: echo "done"
