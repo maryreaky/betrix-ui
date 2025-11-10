@@ -19,10 +19,19 @@ jobs:
       IMAGE_NAME: ghcr.io/${{ github.repository }}
       TAG: ${{ github.sha }}
     steps:
-      - name: Checkout
+      - name: Checkout (full + persist credentials)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Setup buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          install: true
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
@@ -35,7 +44,7 @@ jobs:
             npm ci --omit=dev || npm ci
           fi
 
-      - name: Login to GHCR
+      - name: Login to GHCR (docker/login-action)
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v2
         with:
@@ -43,7 +52,18 @@ jobs:
           username: maryreaky
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Build and push image (local context only)
+      - name: Explicit docker login to ensure builder auth
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u maryreaky --password-stdin
+          docker logout ghcr.io || true
+          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u maryreaky --password-stdin
+
+      - name: Show docker config (debug)
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        run: cat ~/.docker/config.json || true
+
+      - name: Build and push image (buildx) with forwarded auth
         uses: docker/build-push-action@v5
         with:
           context: .
