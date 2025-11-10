@@ -1,56 +1,76 @@
-﻿name: Build and Push
+name: CI Build Test Publish Deploy
+
 on:
   push:
-    branches: [ main, fix/health-redis ]
-  pull_request:
     branches: [ main ]
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
 jobs:
-  build:
+  build-and-publish:
     runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: '"$IMAGE_NAME"'
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: 20
+
       - name: Install dependencies
         run: npm ci
-      - name: Build Docker image
-        run: docker build -t betrix-ui:test .
-  smoke-test:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Node
-        uses: actions/setup-node@v4
+
+      - name: Run tests
+        run: npm test
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
         with:
-          node-version: '18'
-      - name: Install deps for smoke
-        run: npm ci
-      - name: Start app for smoke tests
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and tag image
         run: |
-          export PORT=10000
-          COMMIT_SHA=$(git rev-parse --short HEAD)
-          node src/index.js > server.log 2>&1 & PID=$!
-          echo "started pid=$PID"
-      - name: Wait for health
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          IMAGE_TAG="${IMAGE_NAME}:${SHORT_SHA}"
+          docker build -t "${IMAGE_TAG}" -t "${IMAGE_NAME}:latest" .
+
+      - name: Push image
         run: |
-          HOST=localhost
-          PORT=10000
-          TIMEOUT=30
-          echo "Waiting up to ${TIMEOUT}s for http://${HOST}:${PORT}/health"
-          for i in $(seq 1 $TIMEOUT); do
-            if curl -sSf "http://${HOST}:${PORT}/health" >/dev/null 2>&1; then
-              echo "Healthy after ${i}s"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Health probe failed after ${TIMEOUT}s; dumping server.log"
-          cat server.log || true
-          kill $PID || true
-          exit 1
-      - name: Run smoke tests
-        run: |
-          curl -sSf http://localhost:10000/health
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          IMAGE_TAG="${IMAGE_NAME}:${SHORT_SHA}"
+          docker push "${IMAGE_TAG}"
+          docker push "${IMAGE_NAME}:latest"
+
+      - name: Create release metadata
+        run: echo "IMAGE=${IMAGE_NAME}:${SHORT_SHA}" >> $GITHUB_ENV
+
+  deploy-ssh:
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to host via SSH (pull & restart)
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.'"$DEPLOY_HOST_SECRET"' }}
+          username: ${{ secrets.'"$DEPLOY_USER_SECRET"' }}
+          key: ${{ secrets.'"$DEPLOY_KEY_SECRET"' }}
+          script: |
+            IMAGE="${{ env.IMAGE }}"
+            docker pull $IMAGE
+            docker stop betrix-ui || true
+            docker rm -f betrix-ui || true
+            docker run -d --name betrix-ui \
+              -p 10000:10000 \
+              --restart unless-stopped \
+              -e NODE_ENV=production \
+              -e REDIS_URL="${{ secrets.'"$REDIS_SECRET"'" }}" \
+              $IMAGE
