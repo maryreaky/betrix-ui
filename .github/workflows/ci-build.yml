@@ -43,7 +43,7 @@ jobs:
           username: maryreaky
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Build and push image (local context)
+      - name: Build and push image (local context only)
         uses: docker/build-push-action@v5
         with:
           context: .
