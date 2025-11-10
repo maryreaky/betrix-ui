@@ -41,7 +41,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Build and push image (buildx)
+      - name: Build and push image (buildx) with forwarded auth
         id: docker_build
         uses: docker/build-push-action@v5
         with:
@@ -53,8 +53,7 @@ jobs:
           build-args: |
             NODE_VERSION=22
         secrets: |
-          GIT_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
-          # BUILDKIT_INLINE_CACHE=${{ secrets.GITHUB_TOKEN }}  # optional, enable if you use cache-from
+          GIT_AUTH_TOKEN=${{ secrets.GHCR_PAT }}
 
       - name: Report result
         run: echo "Build finished. push=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}"
