@@ -1,0 +1,56 @@
+﻿name: Build and Push
+on:
+  push:
+    branches: [ main, fix/health-redis ]
+  pull_request:
+    branches: [ main ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Docker image
+        run: docker build -t betrix-ui:test .
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install deps for smoke
+        run: npm ci
+      - name: Start app for smoke tests
+        run: |
+          export PORT=10000
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          node src/index.js > server.log 2>&1 & PID=$!
+          echo "started pid=$PID"
+      - name: Wait for health
+        run: |
+          HOST=localhost
+          PORT=10000
+          TIMEOUT=30
+          echo "Waiting up to ${TIMEOUT}s for http://${HOST}:${PORT}/health"
+          for i in $(seq 1 $TIMEOUT); do
+            if curl -sSf "http://${HOST}:${PORT}/health" >/dev/null 2>&1; then
+              echo "Healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Health probe failed after ${TIMEOUT}s; dumping server.log"
+          cat server.log || true
+          kill $PID || true
+          exit 1
+      - name: Run smoke tests
+        run: |
+          curl -sSf http://localhost:10000/health
