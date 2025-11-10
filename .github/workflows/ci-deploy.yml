@@ -23,8 +23,49 @@ jobs:
 
       - name: Build (if applicable)
         run: npm run build || true
-
       - name: Run smoke server and test health
+        env:
+          PORT: 10000
+        run: |
+          set -euo pipefail
+          echo "Starting app (background) and saving logs to server.log"
+          if [ -f server.js ]; then
+            ENTRY="server.js"
+          elif [ -f src/index.js ]; then
+            ENTRY="src/index.js"
+          else
+            echo "No server.js or src/index.js found"; exit 1
+          fi
+
+          export HOST="0.0.0.0"
+          export PORT=""
+          echo "Using HOST=System.Management.Automation.Internal.Host.InternalHost PORT="
+
+          nohup env HOST="System.Management.Automation.Internal.Host.InternalHost" PORT="" node "" > server.log 2>&1 &
+          echo $! > server.pid
+
+          echo "---- server.log (initial 200 lines) ----"
+          head -n 200 server.log || true
+          echo "---- end initial log ----"
+
+          TIMEOUT=120
+          ATTEMPT=0
+          BACKOFF=1
+          while [  -lt  ]; do
+            ATTEMPT=
+            if curl -sSf --max-time 5 "http://System.Management.Automation.Internal.Host.InternalHost:/health" >/dev/null 2>&1; then
+              echo "Healthy after s"
+              break
+            fi
+            sleep 
+            if [  -lt 5 ]; then BACKOFF=; fi
+            if [  -eq  ]; then
+              echo "Health probe failed after s; dumping server.log"
+              tail -n 400 server.log || true
+              if [ -f server.pid ]; then kill  || true; fi
+              exit 1
+            fi
+          done
   env:
     PORT: 10000
   run: |
@@ -109,4 +150,5 @@ jobs:
               -e NODE_ENV=production \
               -e REDIS_URL="${{ secrets.REDIS_URL }}" \
               $IMAGE
+
 
