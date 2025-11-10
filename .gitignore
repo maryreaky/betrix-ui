@@ -11,3 +11,8 @@ secrets.json
 config.local.*
 npm-debug.log
 package-lock.json
+# Local server logs and temp middleware
+server-err.log
+server-out.log
+server/
+server/middleware/
