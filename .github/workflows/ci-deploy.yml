@@ -1,20 +1,13 @@
 ﻿name: CI Build Test Publish Deploy
 
+name: CI Build Test Publish Deploy
+
 on:
   workflow_dispatch:
-  workflow_dispatch
-
+  push:
     branches: [ main, fix/health-redis ]
   pull_request:
     branches: [ main ]
-
-permissions:
-  contents: read
-  packages: write
-  id-token: write
-
-env:
-  IMAGE_NAME: ghcr.io/maryreaky/betrix-ui
 
 jobs:
   build-and-publish:
@@ -106,3 +99,4 @@ jobs:
               -e NODE_ENV=production \
               -e REDIS_URL="${{ secrets.REDIS_URL }}" \
               $IMAGE
+
