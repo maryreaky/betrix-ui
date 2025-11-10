@@ -16,7 +16,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
         run: npm ci
@@ -41,7 +41,7 @@ jobs:
           echo $! > server.pid
           HOST=localhost
           PORT=10000
-          TIMEOUT=30
+          TIMEOUT=60
           for i in $(seq 1 $TIMEOUT); do
             if curl -sSf "http://${HOST}:${PORT}/health" >/dev/null 2>&1; then
               echo "Healthy after ${i}s"
@@ -97,4 +97,5 @@ jobs:
               -e NODE_ENV=production \
               -e REDIS_URL="${{ secrets.REDIS_URL }}" \
               $IMAGE
+
 
