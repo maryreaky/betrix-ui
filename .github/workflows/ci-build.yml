@@ -33,12 +33,12 @@ jobs:
             npm ci --omit=dev || npm ci
           fi
 
-      - name: Login to GHCR using GHCR_PAT
+      - name: Login to GHCR using GHCR_PAT (explicit owner)
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
+          username: "maryreaky"
           password: ${{ secrets.GHCR_PAT }}
 
       - name: Build and push image (buildx) with forwarded auth
@@ -54,6 +54,7 @@ jobs:
             NODE_VERSION=22
         secrets: |
           GIT_AUTH_TOKEN=${{ secrets.GHCR_PAT }}
+          REGISTRY_TOKEN=${{ secrets.GHCR_PAT }}
 
       - name: Report result
         run: echo "Build finished. push=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}"
