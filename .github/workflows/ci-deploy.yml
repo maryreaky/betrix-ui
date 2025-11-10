@@ -1,7 +1,8 @@
 ﻿name: CI Build Test Publish Deploy
 
 on:
-  push:
+  workflow_dispatch
+
     branches: [ main, fix/health-redis ]
   pull_request:
     branches: [ main ]
@@ -104,3 +105,4 @@ jobs:
               -e NODE_ENV=production \
               -e REDIS_URL="${{ secrets.REDIS_URL }}" \
               $IMAGE
+
