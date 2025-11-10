@@ -1,0 +1,80 @@
+﻿name: smoke
+on:
+  push:
+    paths:
+      - "scripts/**"
+      - ".github/workflows/smoke.yml"
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install deps
+        run: |
+          if [ -f package.json ]; then
+            npm ci
+          fi
+      - name: Build (if present)
+        run: |
+          if [ -f package.json ] && npm run | grep -q "build"; then
+            npm run build || true
+          fi
+      - name: Start worker service (background)
+        run: |
+          # Primary start attempt: npm start; fallback to npm run dev; output to worker.start.log
+          if command -v npm >/dev/null 2>&1; then
+            if npm run | grep -q "start"; then
+              npm start &> worker.start.log & disown $! || true
+            elif npm run | grep -q "dev"; then
+              npm run dev &> worker.start.log & disown $! || true
+            else
+              echo "No npm start/dev found; attempt node index.js"
+              node index.js &> worker.start.log & disown $! || true
+            fi
+          fi
+          # show initial lines to help debugging
+          sleep 1
+          head -n 60 worker.start.log || true
+      - name: Wait for port 3000 (120s)
+        run: |
+          set -e
+          timeout=120
+          waited=0
+          while [ $waited -lt $timeout ]; do
+            if curl -fsS http://localhost:3000/health > /dev/null 2>&1; then
+              echo "service started after ${waited}s"
+              exit 0
+            fi
+            sleep 1
+            waited=$((waited+1))
+            if [ $((waited % 10)) -eq 0 ]; then
+              echo "waited ${waited}s so far; tail of worker.start.log:"
+              tail -n 50 worker.start.log || true
+            fi
+          done
+          echo "service did not start within ${timeout}s" >&2
+          exit 2
+      - name: Run smoke check
+        run: |
+          ./scripts/smoke.sh
+  smoke-test-failure:
+    needs: smoke-test
+    if: always() && failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Show worker start log
+        run: |
+          echo "==== worker.start.log ===="
+          if [ -f worker.start.log ]; then
+            sed -n '1,400p' worker.start.log || true
+          else
+            echo "worker.start.log not found"
+          fi
+          echo "==== end worker.start.log ===="
