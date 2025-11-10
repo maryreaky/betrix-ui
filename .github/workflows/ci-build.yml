@@ -19,11 +19,10 @@ jobs:
       IMAGE_NAME: ghcr.io/${{ github.repository }}
       TAG: ${{ github.sha }}
     steps:
-      - name: Checkout (full)
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: true
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
@@ -36,7 +35,7 @@ jobs:
             npm ci --omit=dev || npm ci
           fi
 
-      - name: Login to GHCR (explicit owner)
+      - name: Login to GHCR
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v2
         with:
@@ -44,15 +43,7 @@ jobs:
           username: maryreaky
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Show docker config (debug)
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        run: |
-          echo "---- ~/.docker/config.json ----"
-          cat ~/.docker/config.json || true
-          echo "--------------------------------"
-
-      - name: Build and push image (buildx) with forwarded auth (local context)
-        id: docker_build
+      - name: Build and push image (local context)
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -60,8 +51,6 @@ jobs:
           platforms: linux/amd64
           push: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
           tags: ${{ env.IMAGE_NAME }}:${{ env.TAG }}
-          build-args: |
-            NODE_VERSION=22
         secrets: |
           GIT_AUTH_TOKEN=${{ secrets.GHCR_PAT }}
           REGISTRY_TOKEN=${{ secrets.GHCR_PAT }}
