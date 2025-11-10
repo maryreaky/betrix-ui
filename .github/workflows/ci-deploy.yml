@@ -1,7 +1,5 @@
 ﻿name: CI Build Test Publish Deploy
 
-name: CI Build Test Publish Deploy
-
 on:
   workflow_dispatch:
   push:
