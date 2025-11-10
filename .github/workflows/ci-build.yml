@@ -52,16 +52,13 @@ jobs:
           username: maryreaky
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Explicit docker login to ensure builder auth
+      - name: Explicit docker login to ensure builder auth and debug
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         run: |
+          echo "DEBUG: performing explicit docker login (will show success/failure)"
           echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u maryreaky --password-stdin
-          docker logout ghcr.io || true
-          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u maryreaky --password-stdin
-
-      - name: Show docker config (debug)
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        run: cat ~/.docker/config.json || true
+          echo "DEBUG: ~/.docker/config.json"
+          cat ~/.docker/config.json || true
 
       - name: Build and push image (buildx) with forwarded auth
         uses: docker/build-push-action@v5
