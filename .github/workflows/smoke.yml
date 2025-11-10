@@ -1,25 +1,57 @@
-﻿# paste your exact GitHub Actions YAML or bash script content here, unchanged
-# example start
-name: smoke
-on: [push]
+﻿name: smoke
+on:
+  push:
+    paths:
+      - "scripts/**"
+      - ".github/workflows/smoke.yml"
 jobs:
-  test:
+  smoke-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Run smoke script
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+      - name: Install deps
         run: |
-          #!/bin/bash
-          SECONDS_WAITED=0
-          timeout=30
-          while [ $SECONDS_WAITED -lt $timeout ]; do
-            sleep 1
-            SECONDS_WAITED=$((SECONDS_WAITED+1))
-            if curl -fsS http://localhost:3000/health > /dev/null; then
-              echo "smoke passed; /health response ok"
+          if [ -f package.json ]; then
+            npm ci
+          fi
+      - name: Start worker service
+        run: |
+          # Replace the line below with your real start command if different
+          npm start &> worker.start.log & disown $!
+      - name: Wait for port 3000
+        run: |
+          set -e
+          timeout=60
+          waited=0
+          while [ $waited -lt $timeout ]; do
+            if curl -fsS http://localhost:3000/health > /dev/null 2>&1; then
+              echo "service started after ${waited}s"
               exit 0
             fi
+            sleep 1
+            waited=$((waited+1))
           done
-          echo "smoke failed; dumping server."
-          # example end
+          echo "service did not start within ${timeout}s" >&2
+          exit 2
+      - name: Run smoke check
+        run: |
+          ./scripts/smoke.sh
+  smoke-test-failure:
+    needs: smoke-test
+    if: always() && failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Show worker start log
+        run: |
+          if [ -f worker.start.log ]; then
+            echo "==== worker.start.log ===="
+            sed -n '1,400p' worker.start.log || true
+            echo "==== end worker.start.log ===="
+          fi
