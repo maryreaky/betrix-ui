@@ -1,62 +1,80 @@
-name: ci-build
-
+name: CI (Node 22 + smoke)
 on:
   push:
-    branches: [ main ]
-    tags: [ "v*" ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
-
-permissions:
-  contents: read
-  packages: write
+    branches:
+      - main
+  workflow_dispatch: {}
 
 jobs:
-  build:
+  build-and-smoke:
     runs-on: ubuntu-latest
     env:
-      IMAGE_NAME: ghcr.io/${{ github.repository }}
-      TAG: ${{ github.sha }}
+      PORT: 10000
     steps:
-      - name: Checkout (full + persist credentials)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
 
-      - name: Setup buildx
-        uses: docker/setup-buildx-action@v2
+      - name: Use Node 22
+        uses: actions/setup-node@v4
         with:
-          install: true
+          node-version: '22.x'
 
-      - name: Login to GHCR (explicit owner)
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: maryreaky
-          password: ${{ ${{ secrets.GHCR_PAT }} }}
-
-      - name: Explicit docker login and debug
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      - name: Confirm Node version
         run: |
-          echo "${{ ${{ secrets.GHCR_PAT }} }}" | docker login ghcr.io -u maryreaky --password-stdin || true
-          echo "---- docker config ----"
-          cat ~/.docker/config.json || true
-          echo "-----------------------"
+          echo "node -v (should be 22.x):"
+          node -v
+          npm -v
 
-      - name: Build and push image (local context, forward PAT)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64
-          push: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
-          tags: ${{ env.IMAGE_NAME }}:${{ env.TAG }}
-          github-token: ${{ ${{ secrets.GHCR_PAT }} }}
-        secrets: |
-          GIT_AUTH_TOKEN=${{ ${{ secrets.GHCR_PAT }} }}
-          REGISTRY_TOKEN=${{ ${{ secrets.GHCR_PAT }} }}
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Finish
-        run: echo "ci-build workflow written by one-shot script"
+      - name: Build (if present)
+        run: |
+          if npm run | grep -q build; then npm run build; else echo "no build script"; fi
+
+      - name: Start server (background) and smoke-test with diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          PORT=\
+          COMMIT_SHA=\
+          echo "Starting server on port \ (commit \)..."
+          # Start server in background; collect logs
+          PORT=\ COMMIT_SHA=\ node server.js > server.log 2>&1 & PID=\$! || true
+          echo "server pid=\8264"
+          sleep 2
+          echo "---- server.log (head 200) ----"
+          head -n 200 server.log || true
+          echo "---- ps aux | grep node ----"
+          ps aux | egrep 'node|server.js' || true
+          echo "---- Listening sockets (ss -lntp or netstat) ----"
+          ss -lntp 2>/dev/null || (echo "ss failed; netstat output:" && netstat -tulpen 2>/dev/null) || true
+          echo "Attempting repeated curl probes for up to 90 seconds..."
+          succeeded=0
+          for ((i=1;i<=90;i++)); do
+            if curl --silent --fail "http://localhost:\" >/dev/null 2>&1; then
+              echo "server ready after \ seconds"
+              succeeded=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "\" -ne 1 ]; then
+            echo "ERROR: server did not become ready on port \ after 90s"
+            echo "---- server.log (tail 1000) ----"
+            tail -n 1000 server.log || true
+            echo "---- ps aux (detailed) ----"
+            ps auxww | egrep 'node|server.js' || true
+            echo "---- ss/netstat (detailed) ----"
+            ss -lntp 2>/dev/null || netstat -tulpen 2>/dev/null || true
+            kill \8264 2>/dev/null || true
+            exit 1
+          fi
+          echo "Final smoke probe (show response):"
+          curl --fail -v "http://localhost:\" || true
+          echo "smoke succeeded; dumping short server log"
+          tail -n 200 server.log || true
+          kill \8264 2>/dev/null || true
