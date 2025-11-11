@@ -1,11 +1,9 @@
-﻿name: CI (Node 22 + smoke)
+﻿name: CI (force Node 22 + smoke)
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch: {}
 
 jobs:
@@ -17,32 +15,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Use Node 22
+      - name: Setup Node (22.x)
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
 
       - name: Confirm Node version
         run: |
-          echo "node -v (should be 22.x):"
+          echo "node -v:"
           node -v
+          echo "npm -v:"
           npm -v
 
-      - name: Install dependencies
+      - name: Install deps
         run: npm ci
 
       - name: Build (if present)
         run: |
           if npm run | grep -q build; then npm run build; else echo "no build script"; fi
 
-      - name: Start server (background) and smoke-test with diagnostics
+      - name: Start server and diagnostics
         shell: bash
         run: |
           set -euo pipefail
           PORT=${PORT:-10000}
           COMMIT_SHA=${COMMIT_SHA:-$(git rev-parse --short HEAD)}
-          echo "Starting server on port $PORT (commit $COMMIT_SHA)..."
-          # Start server in background; collect logs
+          echo "Starting server on port $PORT"
           PORT=$PORT COMMIT_SHA=$COMMIT_SHA node server.js > server.log 2>&1 & PID=$! || true
           echo "server pid=$PID"
           sleep 2
@@ -50,31 +48,19 @@ jobs:
           head -n 200 server.log || true
           echo "---- ps aux | grep node ----"
           ps aux | egrep 'node|server.js' || true
-          echo "---- Listening sockets (ss -lntp or netstat) ----"
-          ss -lntp 2>/dev/null || (echo "ss failed; netstat output:" && netstat -tulpen 2>/dev/null) || true
-          echo "Attempting repeated curl probes for up to 90 seconds..."
-          succeeded=0
+          echo "---- Listening sockets ----"
+          ss -lntp 2>/dev/null || netstat -tulpen 2>/dev/null || true
+          echo "Waiting up to 90s for http://localhost:$PORT ..."
           for ((i=1;i<=90;i++)); do
             if curl --silent --fail "http://localhost:$PORT" >/dev/null 2>&1; then
-              echo "server ready after $i seconds"
-              succeeded=1
-              break
+              echo "ready after $i seconds"
+              exit 0
             fi
             sleep 1
           done
-          if [ "$succeeded" -ne 1 ]; then
-            echo "ERROR: server did not become ready on port $PORT after 90s"
-            echo "---- server.log (tail 1000) ----"
-            tail -n 1000 server.log || true
-            echo "---- ps aux (detailed) ----"
-            ps auxww | egrep 'node|server.js' || true
-            echo "---- ss/netstat (detailed) ----"
-            ss -lntp 2>/dev/null || netstat -tulpen 2>/dev/null || true
-            kill $PID 2>/dev/null || true
-            exit 1
-          fi
-          echo "Final smoke probe (show response):"
-          curl --fail -v "http://localhost:$PORT" || true
-          echo "smoke succeeded; dumping short server log"
-          tail -n 200 server.log || true
+          echo "ERROR: server did not bind; dumping server.log tail"
+          tail -n 500 server.log || true
+          ps auxww | egrep 'node|server.js' || true
+          ss -lntp 2>/dev/null || netstat -tulpen 2>/dev/null || true
           kill $PID 2>/dev/null || true
+          exit 1
