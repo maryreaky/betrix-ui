@@ -1,4 +1,4 @@
-name: smoke-test diagnostics
+name: smoke-test diagnostics (Node 22)
 on:
   workflow_dispatch: {}
 jobs:
@@ -9,10 +9,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Use Node
+      - name: Use Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
       - name: Install deps
         run: npm ci
       - name: Build (if present)
@@ -27,15 +27,14 @@ jobs:
           echo "Starting server on port \ (commit \)..."
           PORT=\ COMMIT_SHA=\ node server.js > server.log 2>&1 & PID=\$! || true
           echo "server pid=\8264"
-          echo "Sleep briefly to let server initialize..."
           sleep 1
           echo "---- server.log (head 200) ----"
           head -n 200 server.log || true
           echo "---- ps aux | grep node ----"
           ps aux | egrep 'node|server.js' || true
           echo "---- Listening sockets (ss -lntp) ----"
-          ss -lntp 2>/dev/null || (echo "ss missing or failed; running netstat" && netstat -tulpen 2>/dev/null) || true
-          echo "Now attempting repeated curl probes for up to 60 seconds..."
+          ss -lntp 2>/dev/null || (echo "ss missing; running netstat" && netstat -tulpen 2>/dev/null) || true
+          echo "Attempting repeated curl probes for up to 60 seconds..."
           succeeded=0
           for ((i=1;i<=60;i++)); do
             if curl --silent --fail "http://localhost:\" >/dev/null 2>&1; then
