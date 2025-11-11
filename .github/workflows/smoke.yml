@@ -1,4 +1,4 @@
-﻿name: smoke-test (Docker Node 22)
+﻿name: smoke-test (Docker publish + inside-container probe)
 on:
   workflow_dispatch: {}
 jobs:
@@ -13,62 +13,46 @@ jobs:
       - name: Pull node:22 image
         run: docker pull node:22
 
-      - name: Run server inside node:22 container and smoke-test
+      - name: Run container with port published and HOST=0.0.0.0
         shell: bash
         run: |
           set -euo pipefail
-          # Runner path
           WORKDIR=$GITHUB_WORKSPACE
           PORT=${PORT:-10000}
           COMMIT_SHA=${COMMIT_SHA:-$(git rev-parse --short HEAD)}
-          CONTAINER_NAME="betrix-smoke-${GITHUB_RUN_ID:-local}"
+          CONTAINER_NAME="betrix-smoke-pub-${GITHUB_RUN_ID:-local}"
 
-          echo "Starting container $CONTAINER_NAME with node:22, mounting $WORKDIR"
-          # Run container in detached mode, map no ports (we will connect from runner to container network via --network host not allowed on GitHub hosted runners)
-          # Instead, we run container with host networking using --network host when available in hosted runners (ubuntu-latest supports it).
-          # If --network host is unavailable, container will be run detached and we will exec curl inside the container; to keep probing from runner,
-          # we use 'docker run --rm -d --network host' so that container binds to localhost of runner.
-          docker run --rm -d --name "$CONTAINER_NAME" --network host -v "$WORKDIR":"$WORKDIR":rw -w "$WORKDIR" node:22 \
-            bash -lc "npm ci --silent && if npm run | grep -q build; then npm run build; fi && echo starting server && PORT=${PORT} COMMIT_SHA=${COMMIT_SHA} node server.js > server.log 2>&1" || true
+          echo "Starting container $CONTAINER_NAME with -p 10000:10000 and HOST=0.0.0.0"
+          docker run --rm -d --name "$CONTAINER_NAME" -p ${PORT}:${PORT} -v "$WORKDIR":"$WORKDIR":rw -w "$WORKDIR" -e PORT=${PORT} -e HOST=0.0.0.0 node:22 \
+            bash -lc "npm ci --silent && if npm run | grep -q build; then npm run build; fi && echo starting server && PORT=${PORT} COMMIT_SHA=${COMMIT_SHA} HOST=0.0.0.0 node server.js > server.log 2>&1" || true
 
-          # short sleep to let container start
           sleep 2
 
-          echo "---- container ps (docker ps --filter name=$CONTAINER_NAME) ----"
+          echo "---- docker ps (container) ----"
           docker ps --filter name="$CONTAINER_NAME" || true
 
-          echo "---- container logs (tail 200) ----"
+          echo "---- docker logs (tail 200) ----"
           docker logs "$CONTAINER_NAME" --tail 200 || true
 
-          echo "Waiting up to 90s for http://localhost:$PORT ..."
-          succeeded=0
-          for ((i=1;i<=90;i++)); do
-            if curl --silent --fail "http://localhost:$PORT" >/dev/null 2>&1; then
-              echo "server ready after $i seconds"
-              succeeded=1
-              break
-            fi
-            sleep 1
-          done
+          echo "---- inside-container: check listening sockets and curl localhost:${PORT} ----"
+          docker exec "$CONTAINER_NAME" sh -c "ss -lntp 2>/dev/null || netstat -tulpen 2>/dev/null || true"
+          docker exec "$CONTAINER_NAME" sh -c "echo 'inside curl:'; curl --silent --fail -v http://localhost:${PORT} || echo inside-curl-failed" || true
 
-          if [ "$succeeded" -ne 1 ]; then
-            echo "ERROR: server did not bind on localhost:$PORT after 90s"
+          echo "---- runner: probe http://localhost:${PORT} from runner ----"
+          if curl --silent --fail "http://localhost:${PORT}" >/dev/null 2>&1; then
+            echo "runner curl succeeded"
+          else
+            echo "runner curl failed; dumping more diagnostics"
             echo "---- container logs (tail 1000) ----"
             docker logs "$CONTAINER_NAME" --tail 1000 || true
-            echo "---- docker ps (all) ----"
-            docker ps -a --filter name="$CONTAINER_NAME" || true
-            echo "---- container top ----"
+            echo "---- docker top ----"
             docker top "$CONTAINER_NAME" || true
-            # attempt to copy server.log out of container for inspection (if exists)
-            docker exec "$CONTAINER_NAME" sh -c 'test -f server.log && tail -n 1000 server.log || echo no server.log found' || true
-            # stop container
+            echo "---- try copying server.log from container ----"
+            docker exec "$CONTAINER_NAME" sh -c 'if [ -f server.log ]; then echo "server.log exists; tail:"; tail -n 200 server.log; else echo "no server.log"; fi' || true
             docker kill "$CONTAINER_NAME" 2>/dev/null || true
             exit 1
           fi
 
-          echo "Final smoke probe (show response):"
-          curl --fail -v "http://localhost:$PORT" || true
-
-          echo "smoke succeeded; dumping container short logs"
+          echo "runner curl success; dumping container short logs and stopping container"
           docker logs "$CONTAINER_NAME" --tail 200 || true
           docker kill "$CONTAINER_NAME" 2>/dev/null || true
