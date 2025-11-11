@@ -1,4 +1,20 @@
 ﻿const express = require('express');
+const HOST = process.env.HOST || '0.0.0.0';
+const PORT = (process.env.PORT && parseInt(process.env.PORT,10)) || 10000;
+function logServerStart(server) {
+  try {
+    const addr = (typeof server.address === 'function') ? server.address() : server.address;
+    if (addr) {
+      const host = addr.address || '0.0.0.0';
+      const port = addr.port || PORT;
+      console.log(Server listening on System.Management.Automation.Internal.Host.InternalHost:);
+    } else {
+      console.log(Server started (bind unknown); HOST=System.Management.Automation.Internal.Host.InternalHost PORT=);
+    }
+  } catch(e) {
+    console.log('logServerStart error', e && e.message ? e.message : e);
+  }
+}
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
@@ -43,7 +59,7 @@ const server = http.createServer(app);
 server.headersTimeout = 60000;
 server.requestTimeout = 60000;
 if (require.main === module) {
-  server.listen(PORT, '0.0.0.0', () => console.log('Server listening on 0.0.0.0:' + PORT));
+  server = server || app; server.listen(PORT, HOST, () => logServerStart(server)); => console.log('Server listening on 0.0.0.0:' + PORT));
 }
 
 ' + $marker + '
@@ -157,6 +173,7 @@ app.post('/telegram/webhook', express.json(), (req, res) => {
 
 // __EOF_SAFE_FIX__ appended 2025-11-05T16:48:10
 try { module.exports = module.exports || {}; } catch(e) {} 
+
 
 
 
