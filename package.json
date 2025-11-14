@@ -6,7 +6,7 @@
                     "node":  "\u003e=22.0.0"
                 },
     "scripts":  {
-                    "start":  "node -r ./src/server/startup-enforce-webhooks.js ./src/server/render-wrapper.js",
+                    "start":  "node -r ./src/server/startup-enforce-webhooks.js ./src/server/render-health-server.js",
                     "build":  "node ./scripts/build-static.js",
                     "start:enforce":  "node -r ./src/server/startup-enforce-webhooks.js src/index.js"
                 },
