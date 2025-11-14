@@ -18,3 +18,5 @@ server/
 server/middleware/
 
 *.bak*
+
+*.bak*
