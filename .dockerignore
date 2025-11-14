@@ -1,0 +1,16 @@
+﻿node_modules
+.git
+.vscode
+.DS_Store
+*.log
+coverage
+dist
+build
+tmp
+.env
+*.tar
+*.zip
+*.tgz
+npm-debug.log
+yarn-error.log
+.idea

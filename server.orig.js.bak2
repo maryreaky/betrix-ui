@@ -1,0 +1,96 @@
+﻿const express = require('express');
+const http = require('http');
+const path = require('path');
+const fs = require('fs');
+
+const HOST = process.env.HOST || '0.0.0.0';
+const PORT = (process.env.PORT && parseInt(process.env.PORT, 10)) || 10000;
+
+function logServerStart(server) {
+  try {
+    const addr = typeof server.address === 'function' ? server.address() : server.address;
+    if (addr) {
+      const host = addr.address || HOST;
+      const port = addr.port || PORT;
+      console.log(`Server listening on ${host}:${port}`);
+    } else {
+      console.log(`Server listening on ${HOST}:${PORT}`);
+    }
+  } catch (e) {
+    console.log('logServerStart error', e && e.message ? e.message : e);
+  }
+}
+
+const app = express();
+
+// Health endpoints
+app.get('/_health', (req, res) => res.status(200).send('ok'));
+app.head('/_health', (req, res) => res.status(200).end());
+app.get('/health', (req, res) => res.status(200).send('ok'));
+app.head('/health', (req, res) => res.status(200).end());
+app.get('/', (req, res) => res.status(200).send('ok'));
+
+// Lightweight request logger for first minute
+let captureUntil = Date.now() + 60000;
+function log(...a) { if (Date.now() < captureUntil) console.log(...a); }
+app.use((req, res, next) => { log('REQ', req.method, req.url); next(); });
+
+// Serve static if present
+const staticDir = path.join(__dirname, 'dist');
+if (fs.existsSync(staticDir)) {
+  app.use(express.static(staticDir, { index: false }));
+  app.get('*', (req, res, next) => {
+    const accept = req.headers.accept || '';
+    if (accept.includes('text/html')) {
+      const index = path.join(staticDir, 'index.html');
+      if (fs.existsSync(index)) return res.sendFile(index);
+    }
+    next();
+  });
+}
+
+// Safe webhook placeholder (immediate ACK; background handling)
+app.post('/telegram/webhook', express.json(), (req, res) => {
+  try {
+    // optional secret check
+    const expectedSecret = process.env.WEBHOOK_SECRET;
+    if (expectedSecret) {
+      const got = req.header('x-telegram-bot-api-secret-token');
+      if (!got || got !== expectedSecret) {
+        console.warn('telegram secret mismatch', { got });
+        return res.status(200).send('ok');
+      }
+    }
+
+    // immediate ACK
+    res.status(200).send('ok');
+
+    // background work: safe, non-blocking
+    setImmediate(async () => {
+      try {
+        const update = req.body;
+        log('process update', update && typeof update === 'object' ? JSON.stringify(update).slice(0,200) : ''+update);
+        // placeholder: actual routing/processing goes here
+      } catch (workerErr) {
+        console.error('webhook background worker error', workerErr && workerErr.stack ? workerErr.stack : workerErr);
+      }
+    });
+  } catch (err) {
+    console.error('webhook handler top error', err && err.stack ? err.stack : err);
+    try { res.status(200).send('ok'); } catch {}
+  }
+});
+
+// Global crash handlers to preserve logs
+process.on('uncaughtException', (e) => console.error('UNCAUGHT', e && e.stack ? e.stack : e));
+process.on('unhandledRejection', (r) => console.error('UNHANDLED REJECTION', r));
+
+const server = http.createServer(app);
+server.headersTimeout = 60000;
+server.requestTimeout = 60000;
+
+if (require.main === module) {
+  server.listen(PORT, HOST, () => logServerStart(server));
+}
+
+module.exports = app;
