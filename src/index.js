@@ -1,4 +1,4 @@
-﻿ï»¿/*
+ï»¿/*
   Generated wrapper: exports createServer() and starts server when run directly.
   Purpose: make the safe wrapper detect createServer, avoid circular imports,
            and use process.env.PORT when starting.
