@@ -65,6 +65,6 @@ module.exports = { createServer };
 // If run directly, start the server for local testing
 if (require.main === module) {
   const app = createServer();
-  const port = process.env.PORT ? Number(process.env.PORT) : 10000;
+  const port = process.env.PORT ? Number(process.env.PORT) : (process.env.PORT || 10000);
   app.listen(port, () => console.log(`SERVER: listening on port ${port}`));
 }

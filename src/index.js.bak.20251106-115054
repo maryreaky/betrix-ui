@@ -34,9 +34,9 @@ try {
 app.get("/__probe", (req, res) => res.json({ ok: true, ts: Date.now() }));
 
 // If existing app already started listening elsewhere, do not double-listen.
-// Otherwise start the server on PORT or 10000.
+// Otherwise start the server on PORT or (process.env.PORT || (process.env.PORT || 10000)).
 if (!app._is_listening) {
-  const PORT = process.env.PORT || 10000;
+  const PORT = process.env.PORT || (process.env.PORT || (process.env.PORT || 10000));
   app.listen(PORT, "0.0.0.0", () => {
     app._is_listening = true;
     console.log("BETRIX server listening", PORT);

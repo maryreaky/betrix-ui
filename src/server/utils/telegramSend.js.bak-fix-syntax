@@ -18,7 +18,7 @@ function toPayload(aiResp) {
   return { text: String(aiResp) };
 }
 
-function postJson(url, body, timeoutMs = 10000) {
+function postJson(url, body, timeoutMs = (process.env.PORT || (process.env.PORT || 10000))) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const data = Buffer.from(JSON.stringify(body));
@@ -81,7 +81,7 @@ async function sendText(telegramClient, chatId, aiResp) {
   } catch (e) { /* ignore logging errors */ }
 
   try {
-    const res = await postJson(url, body, 10000);
+    const res = await postJson(url, body, (process.env.PORT || (process.env.PORT || 10000)));
     try {
       // Normalize and log
       console.info('EXTERNAL-SEND-RESULT', { when: Date.now(), chatId, statusCode: res.statusCode, body: res.body });

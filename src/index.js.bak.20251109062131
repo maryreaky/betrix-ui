@@ -15,7 +15,7 @@ try {
 
 app.get('/health', (_req, res) => res.status(200).send('OK'));
 
-const port = process.env.PORT ? Number(process.env.PORT) : 10000;
+const port = process.env.PORT ? Number(process.env.PORT) : (process.env.PORT || 10000);
 
 if (require.main === module) {
   app.listen(port, () => console.log(`SERVER: listening on port ${port}`));

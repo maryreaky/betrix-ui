@@ -34,7 +34,7 @@ if (appModule && typeof appModule.createServer === 'function') {
 if (require.main === module) {
   const http = require('http');
   const server = module.exports.createServer();
-  const port = process.env.PORT ? Number(process.env.PORT) : 10000;
+  const port = process.env.PORT ? Number(process.env.PORT) : (process.env.PORT || 10000);
   http.createServer(server).listen(port, () => {
     console.log(`SERVER: listening on port ${port}`);
   });

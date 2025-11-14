@@ -37,7 +37,7 @@ async function boot(){
     } else {
       log("BOOT-FAIL: server module missing createServer or function"); process.exit(1);
     }
-    const port = process.env.PORT || 10000;
+    const port = process.env.PORT || (process.env.PORT || 10000);
     if (app && typeof app.listen === "function") {
       app.listen(port, ()=> { log("SERVER: listening on port", port); });
     } else if (app && app.callback && typeof app.callback === "function") {

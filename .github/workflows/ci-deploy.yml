@@ -25,7 +25,7 @@ jobs:
         run: npm run build || true
       - name: Run smoke server and test health
         env:
-          PORT: 10000
+          PORT: (process.env.PORT || (process.env.PORT || (process.env.PORT || 10000)))
         run: |
           set -euo pipefail
           echo "Starting app (background) and saving logs to server.log"
@@ -67,7 +67,7 @@ jobs:
             fi
           done
   env:
-    PORT: 10000
+    PORT: (process.env.PORT || (process.env.PORT || (process.env.PORT || 10000)))
   run: |
     set -euo pipefail
     echo "Starting app (background) and saving logs to server.log"
@@ -145,7 +145,7 @@ jobs:
             docker stop betrix-ui || true
             docker rm -f betrix-ui || true
             docker run -d --name betrix-ui \
-              -p 10000:10000 \
+              -p (process.env.PORT || (process.env.PORT || (process.env.PORT || 10000))):(process.env.PORT || (process.env.PORT || (process.env.PORT || 10000))) \
               --restart unless-stopped \
               -e NODE_ENV=production \
               -e REDIS_URL="${{ secrets.REDIS_URL }}" \

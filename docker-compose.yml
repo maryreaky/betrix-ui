@@ -3,7 +3,7 @@ services:
   betrix-ui:
     image: ghcr.io/maryreaky/betrix-ui@sha256:0297e452115c9d2664af520070411c90a0c925d0dac78bc6323cb55b1017f149
     ports:
-      - "10000:10000"
+      - "(process.env.PORT || 10000):(process.env.PORT || 10000)"
     restart: unless-stopped
     env_file:
       - .env

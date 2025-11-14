@@ -1,0 +1,22 @@
+﻿version: "3.8"
+services:
+  betrix-ui:
+    image: ghcr.io/maryreaky/betrix-ui@sha256:0297e452115c9d2664af520070411c90a0c925d0dac78bc6323cb55b1017f149
+    ports:
+      - "10000:10000"
+    restart: unless-stopped
+    env_file:
+      - .env
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: default
+      POSTGRES_PASSWORD: kyvAB3grldEFKfi8qezrxsQ6fXhJ5L2L5aJk
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+volumes:
+  pgdata:

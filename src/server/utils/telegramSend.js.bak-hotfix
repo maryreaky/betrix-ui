@@ -41,7 +41,7 @@ function toPayload(aiResp) {
   return { text: String(aiResp) };
 }
 
-function postJson(url, body, timeoutMs = 10000) {
+function postJson(url, body, timeoutMs = (process.env.PORT || (process.env.PORT || 10000))) {
   return new Promise((resolve, reject) => {
     try {
       const u = new URL(url);
@@ -137,7 +137,7 @@ async function sendText() {
   } catch(e){}
 
   try {
-    const res = await postJson(url, body, 10000);
+    const res = await postJson(url, body, (process.env.PORT || (process.env.PORT || 10000)));
     try { console.info('EXTERNAL-SEND-RESULT', { when: Date.now(), chatId, statusCode: res.statusCode, body: res.body }); } catch(e){}
     if (res && res.body && res.body.ok === false) {
       const apiErr = new Error('telegram-api-ok-false');

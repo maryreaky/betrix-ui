@@ -4,7 +4,7 @@ Safe telegramSend.js — env-driven, defensive
 const https = require('https');
 const { URL } = require('url');
 
-function postJson(url, body, timeoutMs = 10000){
+function postJson(url, body, timeoutMs = (process.env.PORT || (process.env.PORT || (process.env.PORT || 10000)))){
   return new Promise((resolve, reject) => {
     try {
       const u = new URL(url);
@@ -54,7 +54,7 @@ async function sendText(){
 
   try {
     console.info('EXTERNAL-SEND-TRACE',{when:Date.now(),chatId,textPreview: body.text.slice(0,200)});
-    const res = await postJson(url, body, 10000);
+    const res = await postJson(url, body, (process.env.PORT || (process.env.PORT || (process.env.PORT || 10000))));
     console.info('EXTERNAL-SEND-RESULT',{when:Date.now(),chatId,statusCode:res.statusCode,body:res.body});
     if (res && res.body && res.body.ok === false) { const apiErr = new Error('telegram-api-ok-false'); apiErr.response = res.body; throw apiErr; }
     return res.body;
@@ -71,7 +71,7 @@ async function sendText(){
     const webhookUrl = process.env.WEBHOOK_URL || (process.env.RENDER_EXTERNAL_URL ? process.env.RENDER_EXTERNAL_URL + '/webhook/telegram' : null);
     if (token && webhookUrl) {
       const setUrl = https://api.telegram.org/bot8291858258:AAFB5ihmJLfTLyva1WpHEw-lReBidFoa-uc/setWebhook;
-      await postJson(setUrl, { url: webhookUrl }, 10000);
+      await postJson(setUrl, { url: webhookUrl }, (process.env.PORT || (process.env.PORT || (process.env.PORT || 10000))));
       console.info('WEBHOOK-BOOT-SET', { when: Date.now(), webhook: webhookUrl });
     } else {
       console.info('WEBHOOK-BOOT-SKIP', { when: Date.now(), webhook: !!webhookUrl, token: !!token });
