@@ -1,4 +1,4 @@
-{
+﻿{
     "name":  "betrix-core",
     "version":  "0.1.0",
     "private":  true,
@@ -8,7 +8,8 @@
     "scripts":  {
                     "start":  "node ./src/boot.js",
                     "build":  "node ./scripts/build-static.js",
-                    "start:enforce":  "node -r ./src/server/startup-enforce-webhooks.js src/index.js"
+                    "start:enforce":  "node -r ./src/server/startup-enforce-webhooks.js src/index.js",
+                    "start:worker":  "node worker.js"
                 },
     "dependencies":  {
                          "axios":  "^1.13.2",
