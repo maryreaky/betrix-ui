@@ -1,8 +1,8 @@
-﻿if (typeof app !== 'undefined') {
+if (typeof app !== 'undefined') {
   app.get('/__probe', (req, res) => res.json({ ok: true, probe: 'root', tag: process.env.DEPLOY_TAG || 'none', ts: Date.now() }));
   app.get('/admin-env-bypass', (req, res) => res.json({ ok: true, bypass: true, tag: process.env.DEPLOY_TAG || 'none', ts: Date.now() }));
 }
-const PORT = process.env.PORT ? parseInt(process.env.PORT,10) : (process.env.BETRIX_PORT ? parseInt(process.env.BETRIX_PORT,10) : (process.env.PORT || (process.env.PORT || (process.env.PORT || 10000))));
+const PORT = process.env.PORT ? parseInt(process.env.PORT,10) : (process.env.BETRIX_PORT ? parseInt(process.env.BETRIX_PORT,10) : (process.env.PORT || (process.env.PORT || (process.env.PORT || process.env.PORT || 3000))));
 
 /*
   Safe wrapper inserted for diagnostics.
@@ -33,6 +33,7 @@ if (typeof app !== 'undefined') { app.get('/health', (req, res) => res.status(20
 
 process.on('unhandledRejection', (err) => { console.error('UnhandledRejection', err && err.stack ? err.stack : err) })
 process.on('uncaughtException', (err) => { console.error('UncaughtException', err && err.stack ? err.stack : err) })
+
 
 
 
