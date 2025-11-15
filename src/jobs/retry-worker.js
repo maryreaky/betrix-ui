@@ -1,4 +1,4 @@
-﻿/*
+/*
  * src/jobs/retry-worker.js
  * Small retry worker: pops messages from redis list "betrix:retry" and attempts HTTP delivery.
  * Run this via node src/jobs/retry-worker.js or as a separate process/PM2 job.

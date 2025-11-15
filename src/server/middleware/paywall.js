@@ -1,4 +1,4 @@
-﻿/*
+/*
  * src/server/middleware/paywall.js
  * Skeleton middleware: checks external VIP API for user tier; set BETRIX_VIP_API_URL and BETRIX_API_KEY
  */

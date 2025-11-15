@@ -1,4 +1,4 @@
-﻿/*
+/*
  * src/server/commands/index.js
  * Simple command router: /PING, /help, /bet (placeholder)
  */

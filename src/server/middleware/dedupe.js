@@ -1,4 +1,4 @@
-﻿/*
+/*
   src/server/middleware/dedupe.js
   Exports a factory that returns Express-style middleware and also exposes an init function.
   Usage:
@@ -84,6 +84,8 @@ function factory(opts = {}) {
 }
 
 module.exports = factory;
-module.exports.init = init;
-
+module.exports.init = init;
+
+
+
 

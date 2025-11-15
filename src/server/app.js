@@ -1,4 +1,4 @@
-﻿// Compatibility wrapper for src/server/app.js
+// Compatibility wrapper for src/server/app.js
 // This file tries several common locations for an existing server implementation and exports { createServer }.
 // If none is found, it exports a minimal fallback createServer so the process can start (useful for debugging).
 'use strict';

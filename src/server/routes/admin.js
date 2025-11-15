@@ -1,15 +1,15 @@
-﻿const express = require("express");
+const express = require("express");
 const axios = require("axios");
 const router = express.Router();
-console.log("✅ Admin router loaded");
+console.log("? Admin router loaded");
 
 router.get("/env", (req, res) => {
-  console.log("🔍 ROUTE-HIT /admin/env");
+  console.log("?? ROUTE-HIT /admin/env");
   res.json({ ok: true, openai_present: !!process.env.OPENAI_API_KEY, note: "admin env" });
 });
 
 router.get("/test-openai", async (req, res) => {
-  console.log("🔍 ROUTE-HIT /admin/test-openai");
+  console.log("?? ROUTE-HIT /admin/test-openai");
   if (!process.env.OPENAI_API_KEY) return res.status(200).json({ ok: false, status: "missing_env" });
   try {
     const r = await axios.get("https://api.openai.com/v1/models", {

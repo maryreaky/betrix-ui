@@ -1,4 +1,4 @@
-﻿/*
+/*
  * src/server/handlers/webhook.js
  * Thin forwarder to let commands router handle webhook; kept for compatibility.
  */

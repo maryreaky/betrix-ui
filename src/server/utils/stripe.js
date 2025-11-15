@@ -1,4 +1,4 @@
-﻿const axios = require("axios");
+const axios = require("axios");
 exports.createCheckout = async (tier) => {
   // Placeholder for Stripe call
   return `https://checkout.stripe.com/pay/${tier}`;

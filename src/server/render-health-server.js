@@ -1,4 +1,4 @@
-﻿const http = require('http');
+const http = require('http');
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/health') {

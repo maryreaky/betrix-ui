@@ -1,4 +1,4 @@
-﻿const fetch = globalThis.fetch || require("node-fetch");
+const fetch = globalThis.fetch || require("node-fetch");
 const axios = require("axios");
 
 // Telemetry counters (in-memory)
@@ -27,7 +27,7 @@ const RATE_LIMIT_PER_MINUTE = Number(process.env.RATE_LIMIT_PER_MINUTE || 30);
 function stubReply(prompt) {
   const t = (prompt || "").toString().toLowerCase();
   if (!t) return "I didn't get that. Ask me about fixtures, odds, or tips.";
-  if (/\bhello|hi|hey\b/.test(t)) return "Hello! BETRIX here — limited mode (stub). Ask about odds or fixtures.";
+  if (/\bhello|hi|hey\b/.test(t)) return "Hello! BETRIX here � limited mode (stub). Ask about odds or fixtures.";
   if (/\bping\b/.test(t)) return "pong (stub)";
   if (/\b(odds|fixture|match|score)\b/.test(t)) return "Stubbed matches: Team A vs Team B; Team C vs Team D.";
   return "BETRIX (stub): I'm currently running in fallback mode. Set OPEN_ROUTER_KEY or RAPID_API_KEY to enable live AI.";

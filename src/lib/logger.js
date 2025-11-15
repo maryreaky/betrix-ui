@@ -1,4 +1,4 @@
-﻿/*
+/*
  * src/lib/logger.js
  * Simple structured logger that writes JSON to stdout and provides a prometheus-like counter holder.
  */

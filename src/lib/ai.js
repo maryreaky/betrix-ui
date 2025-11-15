@@ -1,4 +1,4 @@
-﻿/*
+/*
  * src/lib/ai.js
  * RapidAPI OpenAI adapter using RAPIDAPI_HOST and RAPIDAPI_KEY from env.
  */

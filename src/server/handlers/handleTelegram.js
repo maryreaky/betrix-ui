@@ -1,4 +1,4 @@
-﻿const axios = require("axios");
+const axios = require("axios");
 // Injected by hotfix: use TELEGRAM_BOT_TOKEN from env
 const token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || process.env.TELEGRAM_TOKEN;
 const apiMethod = apiMethod || 'sendMessage';

@@ -1,4 +1,4 @@
-﻿// Deterministic send adapter - forwards to telegramSend.sendText
+// Deterministic send adapter - forwards to telegramSend.sendText
 try {
   const path = require("path");
   const real = require(path.join(__dirname, "telegramSend.js"));

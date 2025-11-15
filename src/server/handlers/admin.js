@@ -1,4 +1,4 @@
-﻿const { sendText } = require("../utils/send");
+const { sendText } = require("../utils/send");
 exports.handle = async (chatId) => {
-  await sendText(chatId, \🔧 BETRIX: /admin is active. Full logic coming soon.\);
+  await sendText(chatId, \?? BETRIX: /admin is active. Full logic coming soon.\);
 };
