@@ -16,3 +16,6 @@ try {
   console.error('WRAPPER-ERR', e && (e.stack || e.message || String(e)));
   module.exports = {};
 }
+
+const telegramRouter = require('./telegram-webhook');
+app.use(telegramRouter);
