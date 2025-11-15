@@ -1,4 +1,4 @@
-﻿/**
+/**
 // Injected by hotfix: use TELEGRAM_BOT_TOKEN from env
 const token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || process.env.TELEGRAM_TOKEN;
 const apiMethod = apiMethod || 'sendMessage';
@@ -249,10 +249,10 @@ function parseOddsFromMarket(market) {
 // Telegram helpers
 async function sendTelegram(method, payload) {
   if (!BOT_TOKEN) { console.error('BOT_TOKEN missing'); return null; }
-  const res = await fetch(`https://api.telegram.org/bot${token}/${apiMethod}`
+  const res = await await (async function(){ const start = Date.now(); const url = `https://api.telegram.org/bot${token}/${apiMethod}`; console.log("T-OUTGOING: url=", url, "method=", apiMethod); const controller = new AbortController(); const to = setTimeout(()=>controller.abort(), 15000); let res; try { res = await fetch(url
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload, Object.assign({}, { signal: controller.signal } )); const elapsed = Date.now()-start; clearTimeout(to); let bodyText = null; try { bodyText = await res.text(); } catch(e) { bodyText = "<no-body>"; } console.log("T-OUTGOING-RESP: method=", apiMethod, "status=", res.status, "elapsed_ms=", elapsed, "body=", bodyText); return { status: res.status, body: bodyText }; } catch(err) { clearTimeout(to); console.error("T-OUTGOING-ERROR: method=", apiMethod, err && err.stack || err); throw err; } })()
   });
   return res;
 }
@@ -261,23 +261,23 @@ async function sendTelegram(method, payload) {
 function mkSportsKeyboard() {
   return {
     inline_keyboard: [
-      [{ text: "Football ⚽", callback_data: "sport:Football" }, { text: "Basketball 🏀", callback_data: "sport:Basketball" }],
-      [{ text: "Tennis 🎾", callback_data: "sport:Tennis" }, { text: "Volleyball 🏐", callback_data: "sport:Volleyball" }],
-      [{ text: "All sports 🌐", callback_data: "sport:All" }]
+      [{ text: "Football ?", callback_data: "sport:Football" }, { text: "Basketball ??", callback_data: "sport:Basketball" }],
+      [{ text: "Tennis ??", callback_data: "sport:Tennis" }, { text: "Volleyball ??", callback_data: "sport:Volleyball" }],
+      [{ text: "All sports ??", callback_data: "sport:All" }]
     ]
   };
 }
 function mkMatchesKeyboard(matches) {
-  const rows = matches.slice(0,10).map(m => [{ text: `${m.home} vs ${m.away} — ${shortKickoff(m.kickoff)}`, callback_data: `match:${m.id}` }]);
-  rows.push([{ text: "Back to sports 🔙", callback_data: "menu:sports" }]);
+  const rows = matches.slice(0,10).map(m => [{ text: `${m.home} vs ${m.away} � ${shortKickoff(m.kickoff)}`, callback_data: `match:${m.id}` }]);
+  rows.push([{ text: "Back to sports ??", callback_data: "menu:sports" }]);
   return { inline_keyboard: rows };
 }
 function mkMatchActionsKeyboard(matchId) {
   return {
     inline_keyboard: [
-      [{ text: "View Odds 📊", callback_data: `action:odds:${matchId}` }],
-      [{ text: "Subscribe 🔔", callback_data: `action:subscribe:${matchId}` }],
-      [{ text: "Back to matches 🔙", callback_data: "menu:sports" }]
+      [{ text: "View Odds ??", callback_data: `action:odds:${matchId}` }],
+      [{ text: "Subscribe ??", callback_data: `action:subscribe:${matchId}` }],
+      [{ text: "Back to matches ??", callback_data: "menu:sports" }]
     ]
   };
 }
@@ -317,7 +317,7 @@ const { ask } = require('../utils/openai');
         }
         if (!matches.length) matches = STUB_MATCHES.filter(m => sport==='All' ? true : m.sport.toLowerCase()===sport.toLowerCase());
 
-        const text = matches.length ? `📅 ${sport} matches:` : `No upcoming ${sport} matches found.`;
+        const text = matches.length ? `?? ${sport} matches:` : `No upcoming ${sport} matches found.`;
         await sendTelegram('editMessageText', {
           chat_id: chatId,
           message_id: cb.message.message_id,
@@ -347,7 +347,7 @@ const { ask } = require('../utils/openai');
           await sendTelegram('answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' });
           return { statusCode: 200, body: 'OK' };
         }
-        const text = `🏟 ${match.home} vs ${match.away}\n⏰ ${match.kickoff}\nSport: ${match.sport}`;
+        const text = `?? ${match.home} vs ${match.away}\n? ${match.kickoff}\nSport: ${match.sport}`;
         await sendTelegram('editMessageText', {
           chat_id: chatId,
           message_id: cb.message.message_id,
@@ -376,7 +376,7 @@ const { ask } = require('../utils/openai');
           return { statusCode: 200, body: 'OK' };
         }
         if (verb === 'odds') {
-          let oddsText = `📊 Odds for ${match.home} vs ${match.away}\n`;
+          let oddsText = `?? Odds for ${match.home} vs ${match.away}\n`;
           if (match.odds.home) oddsText += `Home: ${match.odds.home}\n`;
           if (match.odds.draw) oddsText += `Draw: ${match.odds.draw}\n`;
           if (match.odds.away) oddsText += `Away: ${match.odds.away}\n`;
@@ -393,7 +393,7 @@ const { ask } = require('../utils/openai');
             let arr = existing ? JSON.parse(existing) : [];
             if (!arr.includes(matchId)) { arr.push(matchId); await upstashSet(subsKey, JSON.stringify(arr)); }
             await sendTelegram('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscribed (demo)' });
-            await sendTelegram('sendMessage', { chat_id: chatId, text: `🔔 Subscribed to ${match.home} vs ${match.away}` });
+            await sendTelegram('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${match.home} vs ${match.away}` });
           } catch(e) {
             console.error('subscribe error', e);
             await sendTelegram('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscription failed' });
@@ -419,7 +419,7 @@ const { ask } = require('../utils/openai');
     // Rate limiter check (persistent)
     const allowed = await takeTokenPersistent(chatId);
     if (!allowed) {
-      await sendTelegram('sendMessage', { chat_id: chatId, text: "You're sending messages too fast. Please wait a moment ⏳", reply_to_message_id: messageId });
+      await sendTelegram('sendMessage', { chat_id: chatId, text: "You're sending messages too fast. Please wait a moment ?", reply_to_message_id: messageId });
       console.log('rate limited', chatId);
       return { statusCode: 200, body: 'OK' };
     }
@@ -428,7 +428,7 @@ const { ask } = require('../utils/openai');
 
     // /menu
     if (lower === '/menu' || lower === 'menu') {
-      const menuText = "BETRIX Menu ⚡\n• /signin — create/update profile\n• /profile — view/edit profile\n• /menu_sports — browse sports & matches\n• /share — referral link & rewards\n• /balance — view your BETRIX coins\n• /help — responsible play and contact";
+      const menuText = "BETRIX Menu ?\n� /signin � create/update profile\n� /profile � view/edit profile\n� /menu_sports � browse sports & matches\n� /share � referral link & rewards\n� /balance � view your BETRIX coins\n� /help � responsible play and contact";
       await sendTelegram('sendMessage', { chat_id: chatId, text: menuText });
       return { statusCode: 200, body: 'OK' };
     }
@@ -452,8 +452,8 @@ const { ask } = require('../utils/openai');
         } catch(e){ console.error('fixtures fetch error', e); matches = []; }
       }
       if (!matches.length) matches = STUB_MATCHES.filter(m => sport.toLowerCase() === 'all' ? true : m.sport.toLowerCase() === sport.toLowerCase());
-      let list = `📅 ${sport} fixtures:\n`;
-      matches.forEach(m => { list += `${m.id} • ${m.home} vs ${m.away} — ${shortKickoff(m.kickoff)}\n`; });
+      let list = `?? ${sport} fixtures:\n`;
+      matches.forEach(m => { list += `${m.id} � ${m.home} vs ${m.away} � ${shortKickoff(m.kickoff)}\n`; });
       list += "\nUse /odds <match_id> or /subscribe <match_id>";
       await sendTelegram('sendMessage', { chat_id: chatId, text: list });
       return { statusCode: 200, body: 'OK' };
@@ -477,7 +477,7 @@ const { ask } = require('../utils/openai');
         }
       }
       if (!match) { await sendTelegram('sendMessage', { chat_id: chatId, text: "Match not found. Use /menu_sports to browse." }); return { statusCode: 200, body: 'OK' }; }
-      let oddsText = `📊 Odds for ${match.home} vs ${match.away}\n`;
+      let oddsText = `?? Odds for ${match.home} vs ${match.away}\n`;
       if (match.odds.home) oddsText += `Home: ${match.odds.home}\n`;
       if (match.odds.draw) oddsText += `Draw: ${match.odds.draw}\n`;
       if (match.odds.away) oddsText += `Away: ${match.odds.away}\n`;
@@ -495,7 +495,7 @@ const { ask } = require('../utils/openai');
         let existing = await upstashGet(subsKey);
         let arr = existing ? JSON.parse(existing) : [];
         if (!arr.includes(mId)) { arr.push(mId); await upstashSet(subsKey, JSON.stringify(arr)); }
-        await sendTelegram('sendMessage', { chat_id: chatId, text: `🔔 Subscribed to ${mId}.` });
+        await sendTelegram('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${mId}.` });
       } catch(e) {
         console.error('subscribe error', e);
         await sendTelegram('sendMessage', { chat_id: chatId, text: 'Subscription failed' });
@@ -576,7 +576,7 @@ const { ask } = require('../utils/openai');
 
     // /help
     if (lower === '/help') {
-      const help = "BETRIX help ⚡\nCommands: /menu /signin /profile /share /balance /menu_sports /fixtures <sport> /odds <match_id> /subscribe <match_id>\nResponsible gaming: stake only what you can afford.";
+      const help = "BETRIX help ?\nCommands: /menu /signin /profile /share /balance /menu_sports /fixtures <sport> /odds <match_id> /subscribe <match_id>\nResponsible gaming: stake only what you can afford.";
       await sendTelegram('sendMessage', { chat_id: chatId, text: help });
       return { statusCode: 200, body: 'OK' };
     }
@@ -584,7 +584,7 @@ const { ask } = require('../utils/openai');
     // Default: conversational fallback via OpenAI
     pushContext(chatId, 'user', text || '');
     const messages = (function(){ const buf = inMemory.contexts.get(chatId) || []; const system = { role: "system", content: "You are BETRIX assistant. Friendly, concise, no betting tips." }; return [system, ...buf.slice(-2), { role: "user", content: text || "" }]; })();
-    let aiReply = "Sorry, I couldn't generate a reply 🤖";
+    let aiReply = "Sorry, I couldn't generate a reply ??";
     if (OPENAI_API_KEY /* (deprecated; calls now routed to utils/openai.ask) */) {
       try {
         const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -605,7 +605,7 @@ const { ask } = require('../utils/openai');
     } else {
       console.error('OPENAI_API_KEY /* (deprecated; calls now routed to utils/openai.ask) */ missing');
     }
-    await sendTelegram('sendMessage', { chat_id: chatId, text: `💬 ${aiReply}\n\n🔎 Need more? Try /menu or /help.` });
+    await sendTelegram('sendMessage', { chat_id: chatId, text: `?? ${aiReply}\n\n?? Need more? Try /menu or /help.` });
 
     return { statusCode: 200, body: 'OK' };
   } catch (err) {
@@ -613,6 +613,7 @@ const { ask } = require('../utils/openai');
     return { statusCode: 500, body: 'Server error' };
   }
 };
+
 
 
 

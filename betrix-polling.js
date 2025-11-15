@@ -25,7 +25,7 @@ function startBot() {
     return;
   }
 
-  const bot = new TelegramBot(token, { polling: true });
+  const bot = new TelegramBot(token, { polling: false });
   console.log("betrix-polling bootstrap started");
 
   const send = (chatId, text, opt) =>
@@ -72,4 +72,5 @@ function startBot() {
     bot.stopPolling().then(() => process.exit(0))
   );
 }
+
 
