@@ -1,4 +1,4 @@
-/**
+ï»¿/**
 // Injected by hotfix: use TELEGRAM_BOT_TOKEN from env
 const token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || process.env.TELEGRAM_TOKEN;
 const apiMethod = apiMethod || 'sendMessage';
@@ -247,7 +247,7 @@ function parseOddsFromMarket(market) {
 }
 
 // Telegram helpers
-async function sendTelegram(method, payload) {
+async function sendTelegramV2(method, payload) {
   if (!BOT_TOKEN) { console.error('BOT_TOKEN missing'); return null; }
   const res = await await (async function(){ const start = Date.now(); const url = `https://api.telegram.org/bot${token}/${apiMethod}`; console.log("T-OUTGOING: url=", url, "method=", apiMethod); const controller = new AbortController(); const to = setTimeout(()=>controller.abort(), 15000); let res; try { res = await fetch(url
     method: 'POST',
@@ -268,7 +268,7 @@ function mkSportsKeyboard() {
   };
 }
 function mkMatchesKeyboard(matches) {
-  const rows = matches.slice(0,10).map(m => [{ text: `${m.home} vs ${m.away} — ${shortKickoff(m.kickoff)}`, callback_data: `match:${m.id}` }]);
+  const rows = matches.slice(0,10).map(m => [{ text: `${m.home} vs ${m.away} â€” ${shortKickoff(m.kickoff)}`, callback_data: `match:${m.id}` }]);
   rows.push([{ text: "Back to sports ??", callback_data: "menu:sports" }]);
   return { inline_keyboard: rows };
 }
@@ -330,7 +330,7 @@ const { ask } = require('../utils/openai');
           chat_id: chatId,
           message_id: cb.message.message_id,
           text,
-          reply_markup: JSON.stringify(mkMatchesKeyboard(matches)); const __tg_res = await sendTelegram('editMessageText', {
+          reply_markup: JSON.stringify(mkMatchesKeyboard(matches)); const __tg_res = await sendTelegramV2('editMessageText', {
           chat_id: chatId,
           message_id: cb.message.message_id,
           text,
@@ -356,7 +356,7 @@ const { ask } = require('../utils/openai');
           }
         }
         if (!match) {
-          console.log("DEBUG: sendTelegram args:", (typeof 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' } === "object") ? JSON.stringify('answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' }).slice(0,1000) : String('answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' })); const __tg_res = await sendTelegram('answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+          console.log("DEBUG: sendTelegram args:", (typeof 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' } === "object") ? JSON.stringify('answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' }).slice(0,1000) : String('answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' })); const __tg_res = await sendTelegramV2('answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
           return { statusCode: 200, body: 'OK' };
         }
         const text = `?? ${match.home} vs ${match.away}\n? ${match.kickoff}\nSport: ${match.sport}`;
@@ -372,7 +372,7 @@ const { ask } = require('../utils/openai');
           chat_id: chatId,
           message_id: cb.message.message_id,
           text,
-          reply_markup: JSON.stringify(mkMatchActionsKeyboard(matchId)); const __tg_res = await sendTelegram('editMessageText', {
+          reply_markup: JSON.stringify(mkMatchActionsKeyboard(matchId)); const __tg_res = await sendTelegramV2('editMessageText', {
           chat_id: chatId,
           message_id: cb.message.message_id,
           text,
@@ -396,7 +396,7 @@ const { ask } = require('../utils/openai');
           }
         }
         if (!match) {
-          console.log("DEBUG: sendTelegram args:", (typeof 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' } === "object") ? JSON.stringify('answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' }).slice(0,1000) : String('answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' })); const __tg_res = await sendTelegram('answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+          console.log("DEBUG: sendTelegram args:", (typeof 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' } === "object") ? JSON.stringify('answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' }).slice(0,1000) : String('answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' })); const __tg_res = await sendTelegramV2('answerCallbackQuery', { callback_query_id: cb.id, text: 'Match not found' }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
           return { statusCode: 200, body: 'OK' };
         }
         if (verb === 'odds') {
@@ -404,8 +404,8 @@ const { ask } = require('../utils/openai');
           if (match.odds.home) oddsText += `Home: ${match.odds.home}\n`;
           if (match.odds.draw) oddsText += `Draw: ${match.odds.draw}\n`;
           if (match.odds.away) oddsText += `Away: ${match.odds.away}\n`;
-          console.log("DEBUG: sendTelegram args:", (typeof 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Showing odds' } === "object") ? JSON.stringify('answerCallbackQuery', { callback_query_id: cb.id, text: 'Showing odds' }).slice(0,1000) : String('answerCallbackQuery', { callback_query_id: cb.id, text: 'Showing odds' })); const __tg_res = await sendTelegram('answerCallbackQuery', { callback_query_id: cb.id, text: 'Showing odds' }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
-          console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: oddsText } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: oddsText }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: oddsText })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: oddsText }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+          console.log("DEBUG: sendTelegram args:", (typeof 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Showing odds' } === "object") ? JSON.stringify('answerCallbackQuery', { callback_query_id: cb.id, text: 'Showing odds' }).slice(0,1000) : String('answerCallbackQuery', { callback_query_id: cb.id, text: 'Showing odds' })); const __tg_res = await sendTelegramV2('answerCallbackQuery', { callback_query_id: cb.id, text: 'Showing odds' }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+          console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: oddsText } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: oddsText }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: oddsText })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: oddsText }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
           return { statusCode: 200, body: 'OK' };
         }
         if (verb === 'subscribe') {
@@ -416,17 +416,17 @@ const { ask } = require('../utils/openai');
             let existing = await upstashGet(subsKey);
             let arr = existing ? JSON.parse(existing) : [];
             if (!arr.includes(matchId)) { arr.push(matchId); await upstashSet(subsKey, JSON.stringify(arr)); }
-            console.log("DEBUG: sendTelegram args:", (typeof 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscribed (demo === "object") ? JSON.stringify('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscribed (demo).slice(0,1000) : String('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscribed (demo)); const __tg_res = await sendTelegram('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscribed (demo); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));' });
-            console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: `?? Subscribed to ${match.home} vs ${match.away}` } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${match.home} vs ${match.away}` }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${match.home} vs ${match.away}` })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${match.home} vs ${match.away}` }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+            console.log("DEBUG: sendTelegram args:", (typeof 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscribed (demo === "object") ? JSON.stringify('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscribed (demo).slice(0,1000) : String('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscribed (demo)); const __tg_res = await sendTelegramV2('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscribed (demo); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));' });
+            console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: `?? Subscribed to ${match.home} vs ${match.away}` } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${match.home} vs ${match.away}` }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${match.home} vs ${match.away}` })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${match.home} vs ${match.away}` }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
           } catch(e) {
             console.error('subscribe error', e);
-            console.log("DEBUG: sendTelegram args:", (typeof 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscription failed' } === "object") ? JSON.stringify('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscription failed' }).slice(0,1000) : String('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscription failed' })); const __tg_res = await sendTelegram('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscription failed' }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+            console.log("DEBUG: sendTelegram args:", (typeof 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscription failed' } === "object") ? JSON.stringify('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscription failed' }).slice(0,1000) : String('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscription failed' })); const __tg_res = await sendTelegramV2('answerCallbackQuery', { callback_query_id: cb.id, text: 'Subscription failed' }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
           }
           return { statusCode: 200, body: 'OK' };
         }
       }
 
-      console.log("DEBUG: sendTelegram args:", (typeof 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Action received' } === "object") ? JSON.stringify('answerCallbackQuery', { callback_query_id: cb.id, text: 'Action received' }).slice(0,1000) : String('answerCallbackQuery', { callback_query_id: cb.id, text: 'Action received' })); const __tg_res = await sendTelegram('answerCallbackQuery', { callback_query_id: cb.id, text: 'Action received' }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+      console.log("DEBUG: sendTelegram args:", (typeof 'answerCallbackQuery', { callback_query_id: cb.id, text: 'Action received' } === "object") ? JSON.stringify('answerCallbackQuery', { callback_query_id: cb.id, text: 'Action received' }).slice(0,1000) : String('answerCallbackQuery', { callback_query_id: cb.id, text: 'Action received' })); const __tg_res = await sendTelegramV2('answerCallbackQuery', { callback_query_id: cb.id, text: 'Action received' }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
       return { statusCode: 200, body: 'OK' };
     }
 
@@ -443,7 +443,7 @@ const { ask } = require('../utils/openai');
     // Rate limiter check (persistent)
     const allowed = await takeTokenPersistent(chatId);
     if (!allowed) {
-      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "You're sending messages too fast. Please wait a moment ?", reply_to_message_id: messageId } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "You're sending messages too fast. Please wait a moment ?", reply_to_message_id: messageId }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "You're sending messages too fast. Please wait a moment ?", reply_to_message_id: messageId })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: "You're sending messages too fast. Please wait a moment ?", reply_to_message_id: messageId }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "You're sending messages too fast. Please wait a moment ?", reply_to_message_id: messageId } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "You're sending messages too fast. Please wait a moment ?", reply_to_message_id: messageId }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "You're sending messages too fast. Please wait a moment ?", reply_to_message_id: messageId })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: "You're sending messages too fast. Please wait a moment ?", reply_to_message_id: messageId }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
       console.log('rate limited', chatId);
       return { statusCode: 200, body: 'OK' };
     }
@@ -452,14 +452,14 @@ const { ask } = require('../utils/openai');
 
     // /menu
     if (lower === '/menu' || lower === 'menu') {
-      const menuText = "BETRIX Menu ?\n• /signin — create/update profile\n• /profile — view/edit profile\n• /menu_sports — browse sports & matches\n• /share — referral link & rewards\n• /balance — view your BETRIX coins\n• /help — responsible play and contact";
-      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: menuText } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: menuText }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: menuText })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: menuText }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+      const menuText = "BETRIX Menu ?\nâ€¢ /signin â€” create/update profile\nâ€¢ /profile â€” view/edit profile\nâ€¢ /menu_sports â€” browse sports & matches\nâ€¢ /share â€” referral link & rewards\nâ€¢ /balance â€” view your BETRIX coins\nâ€¢ /help â€” responsible play and contact";
+      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: menuText } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: menuText }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: menuText })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: menuText }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
       return { statusCode: 200, body: 'OK' };
     }
 
     // /menu_sports -> show inline sports keyboard
     if (lower === '/menu_sports') {
-      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Choose a sport:", reply_markup: JSON.stringify(mkSportsKeyboard( === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Choose a sport:", reply_markup: JSON.stringify(mkSportsKeyboard().slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Choose a sport:", reply_markup: JSON.stringify(mkSportsKeyboard()); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: "Choose a sport:", reply_markup: JSON.stringify(mkSportsKeyboard(); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));) });
+      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Choose a sport:", reply_markup: JSON.stringify(mkSportsKeyboard( === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Choose a sport:", reply_markup: JSON.stringify(mkSportsKeyboard().slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Choose a sport:", reply_markup: JSON.stringify(mkSportsKeyboard()); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: "Choose a sport:", reply_markup: JSON.stringify(mkSportsKeyboard(); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));) });
       return { statusCode: 200, body: 'OK' };
     }
 
@@ -477,9 +477,9 @@ const { ask } = require('../utils/openai');
       }
       if (!matches.length) matches = STUB_MATCHES.filter(m => sport.toLowerCase() === 'all' ? true : m.sport.toLowerCase() === sport.toLowerCase());
       let list = `?? ${sport} fixtures:\n`;
-      matches.forEach(m => { list += `${m.id} • ${m.home} vs ${m.away} — ${shortKickoff(m.kickoff)}\n`; });
+      matches.forEach(m => { list += `${m.id} â€¢ ${m.home} vs ${m.away} â€” ${shortKickoff(m.kickoff)}\n`; });
       list += "\nUse /odds <match_id> or /subscribe <match_id>";
-      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: list } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: list }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: list })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: list }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: list } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: list }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: list })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: list }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
       return { statusCode: 200, body: 'OK' };
     }
 
@@ -487,7 +487,7 @@ const { ask } = require('../utils/openai');
     if (lower.startsWith('/odds')) {
       const parts = text.split(/\s+/);
       const mId = parts[1];
-      if (!mId) { console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Usage: /odds <match_id>" } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Usage: /odds <match_id>" }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Usage: /odds <match_id>" })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: "Usage: /odds <match_id>" }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));; return { statusCode: 200, body: 'OK' }; }
+      if (!mId) { console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Usage: /odds <match_id>" } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Usage: /odds <match_id>" }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Usage: /odds <match_id>" })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: "Usage: /odds <match_id>" }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));; return { statusCode: 200, body: 'OK' }; }
       // try to find match from TheOdds if available
       let match = STUB_MATCHES.find(m=>m.id===mId);
       if (THEODDS_API_KEY) {
@@ -500,12 +500,12 @@ const { ask } = require('../utils/openai');
           } catch(e){}
         }
       }
-      if (!match) { console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Match not found. Use /menu_sports to browse." } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Match not found. Use /menu_sports to browse." }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Match not found. Use /menu_sports to browse." })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: "Match not found. Use /menu_sports to browse." }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));; return { statusCode: 200, body: 'OK' }; }
+      if (!match) { console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Match not found. Use /menu_sports to browse." } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Match not found. Use /menu_sports to browse." }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Match not found. Use /menu_sports to browse." })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: "Match not found. Use /menu_sports to browse." }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));; return { statusCode: 200, body: 'OK' }; }
       let oddsText = `?? Odds for ${match.home} vs ${match.away}\n`;
       if (match.odds.home) oddsText += `Home: ${match.odds.home}\n`;
       if (match.odds.draw) oddsText += `Draw: ${match.odds.draw}\n`;
       if (match.odds.away) oddsText += `Away: ${match.odds.away}\n`;
-      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: oddsText } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: oddsText }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: oddsText })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: oddsText }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: oddsText } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: oddsText }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: oddsText })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: oddsText }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
       return { statusCode: 200, body: 'OK' };
     }
 
@@ -513,16 +513,16 @@ const { ask } = require('../utils/openai');
     if (lower.startsWith('/subscribe')) {
       const parts = text.split(/\s+/);
       const mId = parts[1];
-      if (!mId) { console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Usage: /subscribe <match_id>" } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Usage: /subscribe <match_id>" }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Usage: /subscribe <match_id>" })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: "Usage: /subscribe <match_id>" }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));; return { statusCode: 200, body: 'OK' }; }
+      if (!mId) { console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Usage: /subscribe <match_id>" } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Usage: /subscribe <match_id>" }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Usage: /subscribe <match_id>" })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: "Usage: /subscribe <match_id>" }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));; return { statusCode: 200, body: 'OK' }; }
       const subsKey = `subs:${uid}`;
       try {
         let existing = await upstashGet(subsKey);
         let arr = existing ? JSON.parse(existing) : [];
         if (!arr.includes(mId)) { arr.push(mId); await upstashSet(subsKey, JSON.stringify(arr)); }
-        console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: `?? Subscribed to ${mId}.` } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${mId}.` }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${mId}.` })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${mId}.` }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+        console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: `?? Subscribed to ${mId}.` } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${mId}.` }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${mId}.` })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: `?? Subscribed to ${mId}.` }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
       } catch(e) {
         console.error('subscribe error', e);
-        console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: 'Subscription failed' } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: 'Subscription failed' }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: 'Subscription failed' })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: 'Subscription failed' }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+        console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: 'Subscription failed' } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: 'Subscription failed' }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: 'Subscription failed' })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: 'Subscription failed' }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
       }
       return { statusCode: 200, body: 'OK' };
     }
@@ -531,17 +531,17 @@ const { ask } = require('../utils/openai');
     if (lower === '/signin') {
       const p = await getProfile(uid);
       if (!p || !p.dob) {
-        console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Send your DOB in YYYY-MM-DD to create your profile (keeps age private === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Send your DOB in YYYY-MM-DD to create your profile (keeps age private).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Send your DOB in YYYY-MM-DD to create your profile (keeps age private)); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: "Send your DOB in YYYY-MM-DD to create your profile (keeps age private); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));." });
+        console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Send your DOB in YYYY-MM-DD to create your profile (keeps age private === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Send your DOB in YYYY-MM-DD to create your profile (keeps age private).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Send your DOB in YYYY-MM-DD to create your profile (keeps age private)); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: "Send your DOB in YYYY-MM-DD to create your profile (keeps age private); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));." });
         await upstashSet ? upstashSet(`expect_dob:${uid}`, "1", 300) : upstashSetFallback(`expect_dob:${uid}`); // best-effort
         return { statusCode: 200, body: 'OK' };
       }
       if (!p.country) {
-        console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Send your country name or ISO2 code now." } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Send your country name or ISO2 code now." }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Send your country name or ISO2 code now." })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: "Send your country name or ISO2 code now." }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+        console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Send your country name or ISO2 code now." } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Send your country name or ISO2 code now." }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Send your country name or ISO2 code now." })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: "Send your country name or ISO2 code now." }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
         await upstashSet ? upstashSet(`expect_country:${uid}`, "1", 300) : upstashSetFallback(`expect_country:${uid}`);
         return { statusCode: 200, body: 'OK' };
       }
       const summary = `Profile:\nDOB: ${p.dob}\nCountry: ${p.country}\nPreferred sites: ${p.preferred_sites?.map(s=>s.name).join(', ') || 'None'}`;
-      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: summary } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: summary }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: summary })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: summary }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: summary } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: summary }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: summary })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: summary }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
       return { statusCode: 200, body: 'OK' };
     }
 
@@ -552,7 +552,7 @@ const { ask } = require('../utils/openai');
       profile.dob = text;
       await saveProfile(uid, profile);
       await upstashSet ? upstashSet(`expect_dob:${uid}`, "", 1) : null;
-      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "DOB saved. Now send your country (name or ISO2 code === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "DOB saved. Now send your country (name or ISO2 code).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "DOB saved. Now send your country (name or ISO2 code)); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: "DOB saved. Now send your country (name or ISO2 code); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));." });
+      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "DOB saved. Now send your country (name or ISO2 code === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "DOB saved. Now send your country (name or ISO2 code).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "DOB saved. Now send your country (name or ISO2 code)); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: "DOB saved. Now send your country (name or ISO2 code); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));." });
       await upstashSet ? upstashSet(`expect_country:${uid}`, "1", 300) : null;
       return { statusCode: 200, body: 'OK' };
     }
@@ -562,24 +562,24 @@ const { ask } = require('../utils/openai');
       profile.country = text;
       await saveProfile(uid, profile);
       await upstashSet ? upstashSet(`expect_country:${uid}`, "", 1) : null;
-      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Country saved. Use /profile to view." } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Country saved. Use /profile to view." }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Country saved. Use /profile to view." })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: "Country saved. Use /profile to view." }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Country saved. Use /profile to view." } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Country saved. Use /profile to view." }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Country saved. Use /profile to view." })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: "Country saved. Use /profile to view." }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
       return { statusCode: 200, body: 'OK' };
     }
 
     // /profile
     if (lower === '/profile') {
       const p = await getProfile(uid);
-      if (!p) { console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "No profile found. Use /signin." } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "No profile found. Use /signin." }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "No profile found. Use /signin." })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: "No profile found. Use /signin." }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));; return { statusCode: 200, body: 'OK' }; }
+      if (!p) { console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "No profile found. Use /signin." } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "No profile found. Use /signin." }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "No profile found. Use /signin." })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: "No profile found. Use /signin." }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));; return { statusCode: 200, body: 'OK' }; }
       const bal = await getBalance(uid);
       const refs = await upstashGet ? await upstashGet(`referrals:${uid}`) : (inMemory.referrals.get(uid) || 0);
       const summary = `Profile:\nDOB: ${p.dob||'Not set'}\nCountry: ${p.country||'Not set'}\nPreferred sites: ${p.preferred_sites?.map(s=>s.name).join(', ') || 'None'}\nBalance: ${bal}\nReferrals: ${refs||0}`;
-      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: summary } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: summary }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: summary })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: summary }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: summary } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: summary }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: summary })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: summary }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
       return { statusCode: 200, body: 'OK' };
     }
 
     // /share referral
     if (lower === '/share') {
-      if (!uid) { console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Unable to create referral link." } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Unable to create referral link." }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Unable to create referral link." })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: "Unable to create referral link." }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));; return { statusCode: 200, body: 'OK' }; }
+      if (!uid) { console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: "Unable to create referral link." } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: "Unable to create referral link." }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: "Unable to create referral link." })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: "Unable to create referral link." }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));; return { statusCode: 200, body: 'OK' }; }
       let code = await getRefcodeForUser(uid);
       if (!code) {
         code = `${uid.toString(36)}${Math.random().toString(36).slice(2,5)}`;
@@ -587,21 +587,21 @@ const { ask } = require('../utils/openai');
       }
       const link = BOT_USERNAME ? `https://t.me/${BOT_USERNAME}?start=${code}` : `Use /start ${code}`;
       const txt = `Share this link to earn ${REWARD_REFERRER_AMOUNT} coins when someone signs up with your link. New users get ${REWARD_SIGNUP_AMOUNT} coins on signup:\n${link}`;
-      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: txt } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: txt }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: txt })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: txt }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: txt } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: txt }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: txt })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: txt }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
       return { statusCode: 200, body: 'OK' };
     }
 
     // /balance
     if (lower === '/balance') {
       const bal = await getBalance(uid);
-      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: `Your balance: ${bal} coins` } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: `Your balance: ${bal} coins` }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: `Your balance: ${bal} coins` })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: `Your balance: ${bal} coins` }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: `Your balance: ${bal} coins` } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: `Your balance: ${bal} coins` }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: `Your balance: ${bal} coins` })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: `Your balance: ${bal} coins` }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
       return { statusCode: 200, body: 'OK' };
     }
 
     // /help
     if (lower === '/help') {
       const help = "BETRIX help ?\nCommands: /menu /signin /profile /share /balance /menu_sports /fixtures <sport> /odds <match_id> /subscribe <match_id>\nResponsible gaming: stake only what you can afford.";
-      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: help } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: help }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: help })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: help }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+      console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: help } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: help }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: help })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: help }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
       return { statusCode: 200, body: 'OK' };
     }
 
@@ -629,7 +629,7 @@ const { ask } = require('../utils/openai');
     } else {
       console.error('OPENAI_API_KEY /* (deprecated; calls now routed to utils/openai.ask) */ missing');
     }
-    console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: `?? ${aiReply}\n\n?? Need more? Try /menu or /help.` } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: `?? ${aiReply}\n\n?? Need more? Try /menu or /help.` }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: `?? ${aiReply}\n\n?? Need more? Try /menu or /help.` })); const __tg_res = await sendTelegram('sendMessage', { chat_id: chatId, text: `?? ${aiReply}\n\n?? Need more? Try /menu or /help.` }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
+    console.log("DEBUG: sendTelegram args:", (typeof 'sendMessage', { chat_id: chatId, text: `?? ${aiReply}\n\n?? Need more? Try /menu or /help.` } === "object") ? JSON.stringify('sendMessage', { chat_id: chatId, text: `?? ${aiReply}\n\n?? Need more? Try /menu or /help.` }).slice(0,1000) : String('sendMessage', { chat_id: chatId, text: `?? ${aiReply}\n\n?? Need more? Try /menu or /help.` })); const __tg_res = await sendTelegramV2('sendMessage', { chat_id: chatId, text: `?? ${aiReply}\n\n?? Need more? Try /menu or /help.` }); console.log("DEBUG: sendTelegram result:", typeof __tg_res === "object" ? JSON.stringify(__tg_res).slice(0,1000) : String(__tg_res));;
 
     return { statusCode: 200, body: 'OK' };
   } catch (err) {
@@ -643,3 +643,46 @@ const { ask } = require('../utils/openai');
 
 
 
+
+
+/* Injected helper: sendTelegramV2
+   - POSTs JSON to Telegram with 15s timeout
+   - Logs T-OUTGOING / T-OUTGOING-RESP / T-OUTGOING-ERROR with trimmed bodies
+   - Returns parsed JSON or throws
+*/
+async function sendTelegramV2(method, payload) {
+  try {
+    const token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || process.env.TELEGRAM_TOKEN;
+    if (!token) {
+      console.error("T-OUTGOING-ERROR: missing TELEGRAM_BOT_TOKEN in env");
+      throw new Error("missing TELEGRAM_BOT_TOKEN");
+    }
+    const url = `https://api.telegram.org/bot${token}/${method}`;
+    console.log("T-OUTGOING: method=", method, "payload_preview=", (() => { try { return JSON.stringify(payload).slice(0,800); } catch(e) { return "<unserializable-payload>"; }})());
+    const controller = new AbortController();
+    const to = setTimeout(()=> controller.abort(), 15000);
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+    } catch (err) {
+      clearTimeout(to);
+      console.error("T-OUTGOING-ERROR: method=", method, err && (err.stack || err.message) || err);
+      throw err;
+    }
+    clearTimeout(to);
+    let bodyText = "<no-body>";
+    try { bodyText = await res.text(); } catch(e) { bodyText = "<body-read-error>"; }
+    let parsed;
+    try { parsed = JSON.parse(bodyText); } catch(e) { parsed = bodyText; }
+    console.log("T-OUTGOING-RESP: method=", method, "status=", res.status, "body_preview=", (typeof bodyText === "string" ? bodyText.slice(0,1500) : String(bodyText)));
+    return parsed;
+  } catch (err) {
+    console.error("T-OUTGOING-ERROR (final):", err && (err.stack || err.message) || err);
+    throw err;
+  }
+}
