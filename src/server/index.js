@@ -1,4 +1,4 @@
-﻿// Auto-generated wrapper to export createServer correctly for bootstrap
+// Auto-generated wrapper to export createServer correctly for bootstrap
 try {
   const mod = require('./app');
   if (mod && typeof mod.createServer === 'function') {
