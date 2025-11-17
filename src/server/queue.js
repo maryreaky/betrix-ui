@@ -1,6 +1,14 @@
 const Redis = require('ioredis');
 const { Queue, Worker } = require('bullmq');
 
+if (!process.env.REDIS_URL) {
+  console.error('[queue] ERROR: REDIS_URL is not set. Expected a redis://... URL. Aborting startup.');
+  throw new Error('Missing REDIS_URL environment variable');
+}
+
+const redacted = process.env.REDIS_URL.replace(/:\/\/([^:]+):([^@]+)@/, '://$1:****@');
+console.log('[queue] using REDIS_URL', redacted);
+
 let connection;
 let queue;
 
