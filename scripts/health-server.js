@@ -11,3 +11,23 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   console.log('[health] server listening on port', PORT);
 });
+const url = require('url');
+const { createQueue } = require('../src/server/queue');
+const metricsQueue = createQueue('betrix-jobs');
+
+const original = server.listeners('request')[0];
+server.removeAllListeners('request');
+server.on('request', async (req, res) => {
+  const { pathname } = url.parse(req.url);
+  if (pathname === '/metrics') {
+    try {
+      const counts = await metricsQueue.getJobCounts();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: true, counts }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+  return original.call(server, req, res);
+});
