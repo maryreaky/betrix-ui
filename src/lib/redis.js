@@ -48,3 +48,4 @@ function createQueue(name, opts = {}) {
 }
 
 module.exports = { connection, createQueue };
+
