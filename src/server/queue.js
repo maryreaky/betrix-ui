@@ -1,38 +1,17 @@
-const Redis = require('ioredis');
-const { Queue, Worker } = require('bullmq');
+const Redis = require("ioredis");
+const { Queue } = require("bullmq");
 
 if (!process.env.REDIS_URL) {
-  console.error('[queue] ERROR: REDIS_URL is not set. Expected a redis://... URL. Aborting startup.');
-  throw new Error('Missing REDIS_URL environment variable');
+  console.error("[queue] ERROR: REDIS_URL is not set. Aborting.");
+  throw new Error("Missing REDIS_URL");
 }
 
-const redacted = process.env.REDIS_URL.replace(/:\/\/([^:]+):([^@]+)@/, '://$1:****@');
-console.log('[queue] using REDIS_URL', redacted);
+const connection = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
+console.log('[queue] using REDIS_URL', process.env.REDIS_URL.replace(/:\/\/([^:]+):([^@]+)@/, '://$1:****@'));
 
-let connection;
-let queue;
-
-function getConnection() {
-  if (!connection) {
-    connection = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
-    console.log('[queue] redis connection initialized');
-  }
-  return connection;
+function createQueue(name = "betrix-jobs") {
+  console.log("[queue] creating Queue with explicit connection:", name);
+  return new Queue(name, { connection });
 }
 
-function getQueue(name = 'betrix-jobs') {
-  if (!queue) {
-    queue = new Queue(name, { connection: getConnection() });
-    console.log('[queue] BullMQ queue initialized:', name);
-  }
-  return queue;
-}
-
-function createWorker(name = 'betrix-jobs', processor = async (job) => ({ ok: true, data: job.data })) {
-  const worker = new Worker(name, processor, { connection: getConnection() });
-  worker.on('completed', (job) => console.log('[worker] completed', job.id));
-  worker.on('failed', (job, err) => console.error('[worker] failed', job?.id, err));
-  return worker;
-}
-
-module.exports = { getConnection, getQueue, createWorker };
+module.exports = { connection, createQueue };
