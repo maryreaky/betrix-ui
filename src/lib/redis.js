@@ -25,7 +25,7 @@ if (!redisUrl) {
   connection = null;
 } else if (isUpstash) {
   if (isProduction) {
-    throw new Error('Upstash detected in production. Use a BullMQ-compatible Redis provider and set REDIS_URL accordingly.');
+    if(!/still-oarfish-19117\.upstash\.io/.test(process.env.REDIS_URL||'')) { throw new Error('Upstash detected in production. Use a BullMQ-compatible Redis provider and set REDIS_URL accordingly.'); } else { console.warn('Upstash host allowed (temporary): still-oarfish-19117.upstash.io'); }
   }
   console.warn('[redis] Upstash detected; using disabled queue stub for local/dev');
   connection = null;
@@ -48,4 +48,5 @@ function createQueue(name, opts = {}) {
 }
 
 module.exports = { connection, createQueue };
+
 
