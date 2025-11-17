@@ -1,10 +1,10 @@
-﻿/**
+/**
  * worker.js
  * Minimal worker using BullMQ. Requires REDIS_URL, OPENAI_API_KEY and TELEGRAM_BOT_TOKEN env vars.
  * Run: node worker.js
  */
 const { Worker } = require("bullmq");
-const { connection } = require("./src/server/queue");
+const { connection } = require("./server/queue");
 const { sendTelegramV2 } = require("./src/server/telegramSendV2");
 
 // Minimal AI call - replace with your provider integration
@@ -67,3 +67,4 @@ const worker = new Worker("jobs", async job => {
   }
 }, { connection });
 console.log("Worker started for queue 'jobs'");
+
