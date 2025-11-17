@@ -4,7 +4,7 @@
  * Run: node worker.js
  */
 const { Worker } = require("bullmq");
-const { connection } = require("./server/queue");
+const { connection } = require("./src/server/queue");
 const { sendTelegramV2 } = require("./src/server/telegramSendV2");
 
 // Minimal AI call - replace with your provider integration
@@ -67,4 +67,5 @@ const worker = new Worker("jobs", async job => {
   }
 }, { connection });
 console.log("Worker started for queue 'jobs'");
+
 
