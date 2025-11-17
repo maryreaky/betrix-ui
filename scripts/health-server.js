@@ -12,8 +12,7 @@ server.listen(PORT, () => {
   console.log('[health] server listening on port', PORT);
 });
 const url = require('url');
-const { createQueue } = require('../src/server/queue');
-const metricsQueue = createQueue('betrix-jobs');
+const { getQueue } = require('../src/server/queue'); const metricsQueue = getQueue('betrix-jobs');
 
 const original = server.listeners('request')[0];
 server.removeAllListeners('request');
@@ -31,3 +30,4 @@ server.on('request', async (req, res) => {
   }
   return original.call(server, req, res);
 });
+
