@@ -1,7 +1,7 @@
 const { Queue } = require('bullmq');
 const Redis = require('ioredis');
 
-const connection = new Redis(process.env.REDIS_URL);
+const connection = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
 
 function createQueue(name = 'betrix-jobs') {
   console.log('[queue] initializing BullMQ queue:', name);
