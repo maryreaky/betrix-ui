@@ -51,3 +51,13 @@ worker.on("completed", (job) => log("info","job completed (worker)",{ id: job.id
 
 process.on("uncaughtException", (err) => log("fatal","uncaughtException",{ err: String(err.stack || err) }));
 process.on("unhandledRejection", (err) => log("fatal","unhandledRejection",{ err: String(err) }));
+
+// RENDER_HEALTH_SERVER_V1
+try{
+  const http = require('http');
+  const port = process.env.PORT || 3000;
+  http.createServer((req,res)=>{
+    if(req.url === '/health'){ res.writeHead(200); res.end('ok'); return; }
+    res.writeHead(200); res.end('worker');
+  }).listen(port,()=>{ console.log('health server listening on', port); });
+}catch(e){ console.error('health-server-error', e && e.message); }
