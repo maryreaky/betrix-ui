@@ -69,3 +69,4 @@ const worker = new Worker("jobs", async job => {
 console.log("Worker started for queue 'jobs'");
 
 
+
