@@ -13,7 +13,7 @@
     "start:web": "node ./src/boot.js",
     "start:all": "pm2-runtime ecosystem.config.js",
     "start:render-web": "node ./scripts/start-with-health.js --service web",
-    "start:render-worker": "node ./scripts/start-worker-with-health.js"
+    "start:render-worker":"node ./worker.js"
   },
   "dependencies": {
     "axios": "^1.13.2",
@@ -29,3 +29,4 @@
   },
   "overrides": {}
 }
+
