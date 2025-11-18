@@ -313,5 +313,8 @@ if (typeof handleCommand === "undefined") {
 // MOVED_INLINE_EXPORT_TO_EOF
 
 // Canonical export placed at EOF to avoid require-time execution
+// MOVED_INLINE_EXPORT_TO_EOF
+
+// Canonical export placed at EOF to avoid require-time execution
 module.exports = { handleCommand };
 
