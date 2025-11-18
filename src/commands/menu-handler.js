@@ -223,7 +223,7 @@ try {
         try {
           const resp = (async () => {
   try {
-
+    const handler = require('./src/commands/menu-handler.js').handleCommand;
     const result = await handler(process.env, job);
     if (result && result.ok) {
       console.error(new Date().toISOString(), "HANDLER_OK", { jobId: job.jobId, chatId: result.chatId });
@@ -248,37 +248,4 @@ try {
  // END: fallback unconditional BRPOP consumer
 
 module.exports = { handleCommand };
-
-/* Fallback handler: ensures handleCommand is defined so worker does not crash.
-   This is a temporary, defensive shim that replies a clear degraded message.
-   Replace with full menu-handler implementation as next step. */
-if (typeof handleCommand === "undefined") {
-  const _fetch = (...args) => require("node-fetch").then(m => m.default(...args));
-  async function handleCommand(env, jobOrUpdate) {
-    try {
-      const payload = jobOrUpdate && (jobOrUpdate.payload || jobOrUpdate);
-      const chatId = payload && payload.message && payload.message.chat && payload.message.chat.id;
-      const userText = (payload && payload.message && payload.message.text) || (payload && payload.text) || "";
-      const reply = "Service temporary degraded: core command handler not fully loaded. Your request was: " + (userText ? ("\"" + userText + "\"") : "<no-text>") + ". Ops alerted.";
-      if (chatId && env && env.TELEGRAM_TOKEN) {
-        try {
-          await _fetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, text: reply })
-          });
-        } catch (e) {
-          console.error(new Date().toISOString(), "FALLBACK_SEND_ERR", e && (e.stack || e.message));
-        }
-      } else {
-        console.error(new Date().toISOString(), "FALLBACK_NO_CHAT_OR_TOKEN", { chatId, hasToken: !!(env && env.TELEGRAM_TOKEN) });
-      }
-      return { ok: true, chatId, fallback: true };
-    } catch (err) {
-      console.error(new Date().toISOString(), "FALLBACK_HANDLER_ERR", err && (err.stack || err.message));
-      return { ok: false, error: err && err.message };
-    }
-  }
-  module.exports = { handleCommand };
-}
 
