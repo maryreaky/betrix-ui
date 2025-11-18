@@ -155,3 +155,27 @@ try {
   console.error(new Date().toISOString(), "FORCE_SERVER_PRESENT_ERROR", e && (e.stack || e.message));
 }
 // END: enforce serverPresent
+// START: wait-for-startup-probe and enforce serverPresent (diagnostic fix)
+(async function __wait_for_probe_and_force(){
+  try {
+    const maxWait = Number(process.env.STARTUP_PROBE_WAIT_MS || 5000);
+    const pollInterval = 100;
+    const start = Date.now();
+    console.error(new Date().toISOString(), "WAIT_PROBE_START", { maxWait });
+    while (typeof globalThis.__SERVER_DETECTED === "undefined" && (Date.now() - start) < maxWait) {
+      await new Promise(r => setTimeout(r, pollInterval));
+    }
+    const detected = !!globalThis.__SERVER_DETECTED;
+    if (detected) {
+      console.error(new Date().toISOString(), "WAIT_PROBE_DETECTED", { elapsed: Date.now() - start });
+      process.env.__SERVER_PRESENT = "true";
+      globalThis.__SERVER_PRESENT = true;
+      console.error(new Date().toISOString(), "FORCE_SERVER_PRESENT enabled from probe");
+    } else {
+      console.error(new Date().toISOString(), "WAIT_PROBE_TIMEOUT_OR_FALSE", { elapsed: Date.now() - start, detected: !!globalThis.__SERVER_DETECTED });
+    }
+  } catch(e){
+    console.error(new Date().toISOString(), "WAIT_PROBE_ERROR", e && (e.stack||e.message));
+  }
+})();
+ // END: wait-for-startup-probe and enforce serverPresent
