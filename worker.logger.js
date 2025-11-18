@@ -140,3 +140,18 @@ const _startup_probe = (async ()=>{
   }
 })();
  // END: startup server-detect probe
+// START: enforce serverPresent from __SERVER_DETECTED (appended by diagnostic)
+try {
+  const detected = !!globalThis.__SERVER_DETECTED;
+  if (detected) {
+    console.error(new Date().toISOString(), "FORCE_SERVER_PRESENT enabled from probe");
+    // ensure any existing code that reads process.env or internal flags can see this
+    process.env.__SERVER_PRESENT = "true";
+    globalThis.__SERVER_PRESENT = true;
+  } else {
+    console.error(new Date().toISOString(), "FORCE_SERVER_PRESENT not set (probe false)");
+  }
+} catch (e) {
+  console.error(new Date().toISOString(), "FORCE_SERVER_PRESENT_ERROR", e && (e.stack || e.message));
+}
+// END: enforce serverPresent
