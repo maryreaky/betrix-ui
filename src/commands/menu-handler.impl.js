@@ -1,4 +1,12 @@
-﻿/* RECOVERY STUB: temporary minimal handleCommand so module loads.
+﻿/* CANONICAL EXPORT GUARD: ensure handleCommand exists during circular loads */
+let handleCommand;
+/* REPLACED INLINE EXPORT: use Object.assign to avoid overwriting */
+    // Available immediately even if file hasn't finished loading
+    return { ok:false, error:'HANDLE_NOT_READY' };
+  }
+};
+/* END EXPORT GUARD */
+/* RECOVERY STUB: temporary minimal handleCommand so module loads.
    Replace with your real implementation inside menu-handler.impl.js when ready. */
 async function handleCommand(env, jobOrUpdate) {
   try {
@@ -13,7 +21,7 @@ async function handleCommand(env, jobOrUpdate) {
 try {
   const impl = require('./menu-handler.impl.js');
   if (impl && typeof impl.handleCommand === 'function') {
-    module.exports = { handleCommand: impl.handleCommand };
+/* REPLACED INLINE EXPORT: use Object.assign to avoid overwriting */
   } else {
     // fallback shim: export a safe function
     module.exports = {
@@ -25,12 +33,22 @@ try {
   }
 } catch (e) {
   // If impl failed to load (syntax error), export safe fallback to avoid throwing at require
-  module.exports = {
-    handleCommand: async function(env, jobOrUpdate) {
-      console.error(new Date().toISOString(), 'MENU_HANDLER_IMPL_LOAD_ERR', e && (e.stack||e.message));
-      return { ok:false, error:'menu-handler.impl load error' };
+/* REPLACED INLINE EXPORT: use Object.assign to avoid overwriting */
     }
   };
 }
 
+//// CANONICAL FOOTER (do not overwrite module.exports)
+try {
+  // If this file declares 'function handleCommand(...)' above, the guard now points to it.
+  // If it declares a different name (e.g., realHandleCommand), bind it here.
+  // Example binding (uncomment and adjust if using a different name):
+  // handleCommand = realHandleCommand;
+
+  // Ensure module.exports keeps handleCommand without overwrite
+  Object.assign(module.exports, { handleCommand });
+} catch (e) {
+  // Keep module stable even on footer errors
+  console.error(new Date().toISOString(), 'MENU_HANDLER_FOOTER_ERR', e && (e.stack || e.message));
+}
 
