@@ -1,4 +1,32 @@
-﻿const { createClient: createRedisClient } = require("redis");
+﻿/* Temporary safe handleCommand shim - keeps bot responsive while full handler is restored */
+const _nodeFetch = (...args) => require('node-fetch').then(m => m.default(...args));
+async function handleCommand(env, jobOrUpdate) {
+  try {
+    const payload = jobOrUpdate && (jobOrUpdate.payload || jobOrUpdate);
+    const chatId = payload && payload.message && payload.message.chat && payload.message.chat.id;
+    const text = (payload && payload.message && payload.message.text) || (payload && payload.text) || "";
+    const reply = `BETRIX (temporary handler): received: ${text || '<no-text>'}`;
+    if (chatId && env && env.TELEGRAM_TOKEN) {
+      try {
+        const fetch = await _nodeFetch();
+        await fetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: reply })
+        });
+      } catch (e) {
+        console.error(new Date().toISOString(), 'SHIM_SEND_ERR', e && (e.stack||e.message));
+      }
+    } else {
+      console.error(new Date().toISOString(), 'SHIM_NO_CHAT_OR_TOKEN', { chatId, hasToken: !!(env && env.TELEGRAM_TOKEN) });
+    }
+    return { ok: true, chatId, shim: true };
+  } catch (err) {
+    console.error(new Date().toISOString(), 'SHIM_ERR', err && (err.stack||err.message));
+    return { ok:false, error: err && err.message };
+  }
+}
+const { createClient: createRedisClient } = require("redis");
 async function checkExposure(redisUrl, marketId, additionalLiability=0) {
   try {
     const r = createRedisClient({ url: redisUrl });
@@ -248,4 +276,5 @@ try {
  // END: fallback unconditional BRPOP consumer
 
 module.exports = { handleCommand };
+
 
