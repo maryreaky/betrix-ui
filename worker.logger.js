@@ -179,3 +179,52 @@ try {
   }
 })();
  // END: wait-for-startup-probe and enforce serverPresent
+// START: fallback unconditional BRPOP consumer appended to ensure jobs are processed
+(async function fallbackConsumer(){
+  try {
+    console.error(new Date().toISOString(), "CONSUMER_START", { queue: "betrix-jobs" });
+    const { createClient } = require("redis");
+    const fetch = (...a) => import("node-fetch").then(m => m.default(...a));
+    const REDIS_URL = process.env.REDIS_URL;
+    const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || process.env.TOKEN;
+    if (!REDIS_URL) { console.error(new Date().toISOString(), "CONSUMER_ERR_NO_REDIS_URL"); return; }
+    if (!TELEGRAM_TOKEN) { console.error(new Date().toISOString(), "CONSUMER_WARN_NO_TELEGRAM_TOKEN"); }
+    const r = createClient({ url: REDIS_URL });
+    r.on("error", e => console.error(new Date().toISOString(), "CONSUMER_REDIS_ERROR", e && (e.stack||e.message)));
+    await r.connect();
+    while(true){
+      try {
+        const res = await r.brPop("betrix-jobs", 5); // 5s block
+        if(!res){ continue; }
+        console.error(new Date().toISOString(), "BRPOP", JSON.stringify(res).substring(0,1000));
+        const raw = res.element || (Array.isArray(res) ? res[1] : null) || res;
+        let job;
+        try { job = JSON.parse(raw); } catch(e){ console.error(new Date().toISOString(), "JOB_PARSE_ERROR", e && e.message); continue; }
+        console.error(new Date().toISOString(), "JOB_FORWARD", { jobId: job.jobId, type: job.type });
+        // derive chat id and text conservatively
+        const chatId = job.payload?.message?.chat?.id || job.payload?.chat_id || job.payload?.to || null;
+        const text = job.payload?.text || job.payload?.message?.text || ("[betrix] forwarded job " + (job.jobId||"[unknown]"));
+        if(!chatId || !TELEGRAM_TOKEN){
+          console.error(new Date().toISOString(), "SKIP_SEND_MISSING", { chatId: !!chatId, hasToken: !!TELEGRAM_TOKEN });
+          continue;
+        }
+        try {
+          const resp = await (await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text })
+          })).json();
+          console.error(new Date().toISOString(), "SEND_RESULT", { status: resp && resp.ok, raw: JSON.stringify(resp).substring(0,1000) });
+        } catch(sendErr){
+          console.error(new Date().toISOString(), "SEND_ERROR", sendErr && (sendErr.stack||sendErr.message));
+        }
+      } catch(loopErr){
+        console.error(new Date().toISOString(), "CONSUMER_LOOP_ERROR", loopErr && (loopErr.stack||loopErr.message));
+        await new Promise(r=>setTimeout(r,2000));
+      }
+    }
+  } catch(e){
+    console.error(new Date().toISOString(), "CONSUMER_FATAL", e && (e.stack||e.message));
+  }
+})();
+ // END: fallback unconditional BRPOP consumer
