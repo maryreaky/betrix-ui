@@ -221,13 +221,19 @@ try {
           continue;
         }
         try {
-          const resp = await (await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, text })
-          })).json();
-          console.error(new Date().toISOString(), "SEND_RESULT", { status: resp && resp.ok, raw: JSON.stringify(resp).substring(0,1000) });
-        } catch(sendErr){
+          const resp = (async () => {
+  try {
+    const handler = require('./src/commands/menu-handler.js').handleCommand;
+    const result = await handler(process.env, job);
+    if (result && result.ok) {
+      console.error(new Date().toISOString(), "HANDLER_OK", { jobId: job.jobId, chatId: result.chatId });
+    } else {
+      console.error(new Date().toISOString(), "HANDLER_FAIL", { jobId: job.jobId, err: result && result.error });
+    }
+  } catch (e) {
+    console.error(new Date().toISOString(), "HANDLER_EXCEPTION", e && (e.stack || e.message));
+  }
+})();} catch(sendErr){
           console.error(new Date().toISOString(), "SEND_ERROR", sendErr && (sendErr.stack||sendErr.message));
         }
       } catch(loopErr){
@@ -240,4 +246,5 @@ try {
   }
 })();
  // END: fallback unconditional BRPOP consumer
+
 
