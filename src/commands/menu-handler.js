@@ -1,195 +1,276 @@
 ﻿/**
- * menu-handler.js
- * Enhanced Betrix menu and AI responder hook.
+ * menu-handler.js — full-featured Betrix Telegram command handler
  * Usage: const { handleCommand } = require("./src/commands/menu-handler.js");
- * Call handleCommand(process.env, job) for each dequeued job or webhook update.
+ * Call with handleCommand(process.env, jobOrUpdate)
  *
- * Notes:
- * - No emoji characters are used.
- * - Replace aiRespond(...) with your AI orchestrator call in one place.
+ * Features:
+ * - Robust command parsing (bot_command entities + text heuristics)
+ * - Supports: /start, /menu, /help, /bet, /odds, /balance, /deposit, /withdraw, /history, /cancel
+ * - Admin commands: /stats, /flushqueue, /debug (guarded by ADMIN_IDS)
+ * - Meme responder with emojis and canned images/text
+ * - Single-point AI orchestrator (env YOUR_AI_URL)
+ * - Telemetry logs: COMMAND_RECEIVED, HANDLER_OK, HANDLER_FAIL, REPLY_SENT
+ * - Safe network calls and timeouts
  */
 const fetch = (...a) => import('node-fetch').then(m => m.default(...a));
 
 function safeLog(tag, obj) {
   try { console.error(new Date().toISOString(), tag, obj); } catch(e) {}
 }
+function textify(x){ return (x===undefined||x===null) ? '' : String(x); }
+const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s=>s.trim()).filter(Boolean).map(Number);
 
-function textify(x){ return (x||'').toString(); }
+// small helper: pick chat id from common payload shapes
+function extractChatId(payload) {
+  const msg = payload.message || payload;
+  return msg?.chat?.id || msg?.from?.id || payload?.chat_id || null;
+}
 
+// parse bot_command entity if present, otherwise fallback to text heuristics
+function parseCommand(payload) {
+  const msg = payload.message || payload;
+  const text = textify(msg?.text || payload?.text || '').trim();
+  // entity-aware parse
+  const entities = (msg && msg.entities) || (payload && payload.entities) || [];
+  const botCmd = entities.find(e => e.type === 'bot_command');
+  if (botCmd && botCmd.offset === 0) {
+    // extract the exact command token from text
+    const token = text.split(/\s+/)[0] || '';
+    const rest = text.slice((token.length)).trim();
+    return { raw: text, cmd: token.toLowerCase(), rest };
+  }
+  // heuristics: /bet100teamname or /bet100 team
+  const m = text.match(/^\/([a-zA-Z]+)(.*)$/);
+  if (m) {
+    const cmd = '/' + m[1].toLowerCase();
+    let rest = (m[2] || '').trim();
+    // split if rest crammed with numbers: /bet100teamname => amount=100
+    if (cmd === '/bet') {
+      const ran = rest.match(/^(\d+)(?:\s+(.+))?$/);
+      if (ran) { rest = (ran[1] || '') + ' ' + (ran[2] || ''); rest = rest.trim(); }
+      else {
+        // also handle /bet100team where no space after command
+        const combined = text.match(/^\/bet(\d+)(.+)$/i);
+        if (combined) { rest = `${combined[1]} ${combined[2].trim()}`; }
+      }
+    }
+    return { raw: text, cmd, rest };
+  }
+  // no explicit command -> fallback
+  return { raw: text, cmd: null, rest: text };
+}
+
+// safe fetch with timeout
+async function fetchWithTimeout(url, opts = {}, timeout = 7000) {
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), timeout);
+  try {
+    const res = await fetch(url, Object.assign({}, opts, { signal: controller.signal }));
+    clearTimeout(timer);
+    return res;
+  } catch (e) {
+    clearTimeout(timer);
+    throw e;
+  }
+}
+
+// single-point send
 async function sendTelegram(token, chatId, text, extra = {}) {
   try {
     const body = Object.assign({ chat_id: chatId, text }, extra);
-    const resp = await (await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const resp = await fetchWithTimeout(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
-    })).json();
-    safeLog('REPLY_SENT', { chatId, ok: !!resp.ok, result: resp && (resp.result && { message_id: resp.result.message_id } ) || null });
-    return { ok: !!resp.ok, raw: resp };
-  } catch (e) {
-    safeLog('REPLY_ERROR', e && (e.stack || e.message));
+    }, 8000);
+    const json = await resp.json();
+    safeLog('REPLY_SENT', { chatId, ok: !!json.ok, snippet: text.slice(0,200) });
+    return { ok: !!json.ok, raw: json };
+  } catch(e) {
+    safeLog('REPLY_ERROR', e && (e.stack||e.message));
     return { ok: false, error: e && e.message };
   }
 }
 
-// ---------- AI responder stub: replace this with your orchestrator ----------
-async function aiRespond(prompt, context = {}) {
-  // Replace this single function with your AI call.
-  // Example replacement: return await yourOrchestrator.respond(prompt, context);
-  const p = textify(prompt).toLowerCase();
-  if (p.includes('bet')) return 'To place a bet: /bet <amount> <selection>. Example: /bet 100 arsenal';
-  if (p.includes('odds')) return 'Odds command: /odds <market>. Live odds are available via the odds API.';
-  if (p.includes('meme')) return 'Meme: WHEN THE ODDS ARE IN YOUR FAVOR: [¯\\_(ツ)_/¯]';
-  return "I did not understand that. Use /menu to see options.";
-}
-// -----------------------------------------------------------------------
-
-const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean).map(Number);
-
-function isAdmin(id){
-  if(!id) return false;
-  return ADMIN_IDS.includes(Number(id));
-}
-
-function buildMenuText(){
-  return [
-    '*Betrix Menu*',
-    '/start — welcome and quick setup',
-    '/menu — show this menu',
-    '/help — help and contact',
-    '/bet <amount> <selection> — place a bet',
-    '/odds <market> — fetch odds for a market',
-    '/balance — show your balance (stub)',
-    '/deposit — deposit instructions (stub)',
-    '/withdraw — withdraw instructions (stub)',
-    '/history — show recent activity (stub)',
-    '/cancel <id> — cancel a pending bet',
-    '',
-    'Admin:',
-    '/stats — service stats',
-    '/flushqueue — remove queued jobs (admin only)',
-    '/debug — debug info (admin only)',
-    '',
-    'Try typing a question like "what are the odds?" or "show me a meme".'
-  ].join('\n');
-}
-
-function simpleMemeResponder(text){
+// Meme responder (text + emoji)
+function memeResponder(text) {
   const t = textify(text).toLowerCase();
   const memes = [
-    'classic-meme: I CAME, I SAW, I PARSED THE ODDS',
-    'sports-meme: LATE GOAL ENERGY',
-    'reaction-meme: THAT FEELING WHEN YOU WIN THE BET'
+    'When live odds flip last minute 😅 — HOLD TIGHT',
+    'That feeling when your underdog scores ⚡️🔥',
+    'Late winner energy 🏆 — celebrate responsibly'
   ];
-  if (t.includes('meme')) return memes[Math.floor(Math.random()*memes.length)];
-  if (t.includes('joke') || t.includes('funny')) return 'joke: Why did the bettor cross the road? To follow the favorite.';
+  if (t.includes('meme') || t.includes('joke')) return memes[Math.floor(Math.random() * memes.length)];
+  if (t.includes('hi') || t.includes('hello') || t.includes('👋')) return 'Hey! 👋 I am BETRIX — say /menu to see what I can do.';
   return null;
 }
 
-async function handleCommand(env, jobOrUpdate){
+// AI orchestrator hook (single place to replace)
+async function aiOrchestrator(prompt, context = {}) {
+  const url = process.env.YOUR_AI_URL || process.env.AI_URL;
+  if (!url) {
+    // deterministic fallback
+    if (/odds/i.test(prompt)) return 'Live odds: stubbed. Use /odds <market> to request market-specific odds.';
+    return "I can help with bets and odds. Try /menu to see commands.";
+  }
+  try {
+    const resp = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, context })
+    }, 8000);
+    const j = await resp.json();
+    // try common shapes
+    return j && (j.reply || j.text || j.result) || 'AI returned no text';
+  } catch(e) {
+    safeLog('AI_ERROR', e && (e.stack || e.message));
+    return 'AI unavailable right now. Try again later.';
+  }
+}
+
+// Main handler
+async function handleCommand(env, jobOrUpdate) {
   try {
     const TELEGRAM_TOKEN = env.TELEGRAM_TOKEN || env.TOKEN;
-    if(!TELEGRAM_TOKEN) throw new Error('Missing TELEGRAM_TOKEN env');
-
+    if (!TELEGRAM_TOKEN) throw new Error('Missing TELEGRAM_TOKEN');
     const payload = jobOrUpdate.payload || jobOrUpdate;
-    const msg = payload.message || payload;
-    const chatId = msg?.chat?.id || (msg?.from && msg.from.id);
-    const text = textify(msg?.text || payload?.text || '');
-    safeLog('COMMAND_RECEIVED', { chatId, text, jobId: jobOrUpdate.jobId || null });
+    const chatId = extractChatId(payload);
+    const parsed = parseCommand(payload);
+    safeLog('COMMAND_RECEIVED', { chatId, parsed });
+    const fromId = (payload.message && payload.message.from && payload.message.from.id) || null;
 
-    // admin guard
-    const fromId = msg?.from?.id || null;
+    // admin check helper
+    const isAdmin = id => ADMIN_IDS.includes(Number(id));
 
-    // quick routing
-    const first = text.trim().split(/\s+/)[0] || '';
-    const cmd = first.toLowerCase();
+    // explicit command routing
+    const cmd = parsed.cmd;
+    const rest = parsed.rest || '';
 
-    // built-in commands
-    if(cmd === '/start'){
-      const welcome = `Welcome to BETRIX. Quick tips: send /menu to see commands.`;
-      await sendTelegram(TELEGRAM_TOKEN, chatId, welcome, { parse_mode: 'Markdown' });
-      return { ok: true, chatId, reply: welcome };
-    }
-
-    if(cmd === '/menu'){
-      const m = buildMenuText();
-      await sendTelegram(TELEGRAM_TOKEN, chatId, m, { parse_mode: 'Markdown' });
-      return { ok: true, chatId, reply: m };
-    }
-
-    if(cmd === '/help'){
-      const h = 'Help: use /menu. For support, contact the Betrix team.';
-      await sendTelegram(TELEGRAM_TOKEN, chatId, h);
-      return { ok: true, chatId, reply: h };
-    }
-
-    if(cmd === '/bet'){
-      const parts = text.split(/\s+/);
-      if(parts.length < 3){
-        const usage = 'Usage: /bet <amount> <selection>';
-        await sendTelegram(TELEGRAM_TOKEN, chatId, usage);
-        return { ok: false, chatId, reply: usage };
+    if (!cmd) {
+      // no explicit command: try meme responder, then AI fallback
+      const meme = memeResponder(rest);
+      if (meme) {
+        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, meme);
+        return { ok: s.ok, chatId, sent: s };
       }
-      const amount = parts[1];
-      const selection = parts.slice(2).join(' ');
-      // in prod: validate, debit, enqueue bet processor. Here: stubbed response.
-      const confirm = `Bet received (stub): amount=${amount} selection=${selection}`;
-      await sendTelegram(TELEGRAM_TOKEN, chatId, confirm);
-      return { ok: true, chatId, reply: confirm };
+      const ai = await aiOrchestrator(rest, { chatId, fromId });
+      const s = await sendTelegram(TELEGRAM_TOKEN, chatId, ai);
+      return { ok: s.ok, chatId, sent: s };
     }
 
-    if(cmd === '/odds'){
-      const parts = text.split(/\s+/);
-      const market = parts[1] || 'general';
-      const oddsReply = `Odds for ${market}: 1.5 (stub). Use live odds API for real data.`;
-      await sendTelegram(TELEGRAM_TOKEN, chatId, oddsReply);
-      return { ok: true, chatId, reply: oddsReply };
+    switch (cmd) {
+      case '/start': {
+        const reply = `Welcome to BETRIX 🎯\nUse /menu to see available commands. Manage bets, check odds, or ask me for a meme.`;
+        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, reply);
+        return { ok: s.ok, chatId, reply };
+      }
+
+      case '/menu': {
+        const menu = [
+          '📋 *Betrix Menu*',
+          '/start — quick intro',
+          '/menu — this menu',
+          '/help — help & contact',
+          '/bet <amount> <selection> — place a bet (example: /bet 100 Arsenal)',
+          '/odds <market> — show odds for a market',
+          '/balance — show your balance (stub)',
+          '/deposit — deposit instructions (stub)',
+          '/withdraw — withdraw instructions (stub)',
+          '/history — recent activity (stub)',
+          '/cancel <id> — cancel pending bet (stub)',
+          '',
+          'Admin: /stats, /flushqueue, /debug (admin only)',
+          '',
+          'Type a question (e.g., "What are the odds for tonight?") or say "meme" for fun.'
+        ].join('\n');
+        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, menu, { parse_mode: 'Markdown' });
+        return { ok: s.ok, chatId, reply: menu };
+      }
+
+      case '/help': {
+        const h = 'Help: use /menu to see commands. For account or payment help contact support@betrix.example (stub).';
+        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, h);
+        return { ok: s.ok, chatId, reply: h };
+      }
+
+      case '/bet': {
+        // expect "amount selection"
+        const parts = rest.split(/\s+/).filter(Boolean);
+        if (parts.length < 2) {
+          const usage = 'Usage: /bet <amount> <selection>\nExample: /bet 100 Arsenal';
+          const s = await sendTelegram(TELEGRAM_TOKEN, chatId, usage);
+          return { ok: false, chatId, reply: usage };
+        }
+        const amount = parts[0];
+        const selection = parts.slice(1).join(' ');
+        // Basic validation
+        if (!/^\d+$/.test(amount)) {
+          const err = 'Invalid amount. Please enter a whole number amount in KES.';
+          await sendTelegram(TELEGRAM_TOKEN, chatId, err);
+          return { ok: false, chatId, error: 'invalid_amount' };
+        }
+        // In production: enqueue bet processing, check balance, debit, persist.
+        const confirmation = `✅ Bet placed (stub)\nAmount: ${amount}\nSelection: ${selection}\nReference: bet_stub_${Date.now()}`;
+        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, confirmation);
+        return { ok: s.ok, chatId, reply: confirmation };
+      }
+
+      case '/odds': {
+        const market = rest.split(/\s+/).filter(Boolean)[0] || 'general';
+        // in prod call odds API; here we call AI orchestrator to create a friendly odds reply, or fallback stub
+        const ai = await aiOrchestrator(`odds for ${market}`, { market, chatId });
+        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, `📊 Odds for *${market}*:\n${ai}`, { parse_mode: 'Markdown' });
+        return { ok: s.ok, chatId, reply: ai };
+      }
+
+      case '/balance': {
+        const reply = 'Balance: KES 0.00 (stub). Connect wallet API to show real balance.';
+        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, reply);
+        return { ok: s.ok, chatId, reply };
+      }
+
+      case '/deposit':
+      case '/withdraw':
+      case '/history':
+      case '/cancel': {
+        const r = `${cmd} is stubbed. Integrate payments/ledger to enable this feature.`;
+        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, r);
+        return { ok: s.ok, chatId, reply: r };
+      }
+
+      case '/stats': {
+        if (!isAdmin(fromId)) { const x='Unauthorized'; await sendTelegram(TELEGRAM_TOKEN, chatId, x); return { ok:false, chatId, error:'unauthorized' }; }
+        const stats = 'Stats (stub): queue length and uptime not implemented in handler. Add metrics exporter for real stats.';
+        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, stats);
+        return { ok: s.ok, chatId, reply: stats };
+      }
+
+      case '/flushqueue': {
+        if (!isAdmin(fromId)) { const x='Unauthorized'; await sendTelegram(TELEGRAM_TOKEN, chatId, x); return { ok:false, chatId, error:'unauthorized' }; }
+        const flush = 'Flush queue protected. Use admin CLI to flush. (stub)';
+        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, flush);
+        return { ok: s.ok, chatId, reply: flush };
+      }
+
+      case '/debug': {
+        if (!isAdmin(fromId)) { const x='Unauthorized'; await sendTelegram(TELEGRAM_TOKEN, chatId, x); return { ok:false, chatId, error:'unauthorized' }; }
+        const dbg = `Debug: ENV keys present: ${Object.keys(env || {}).slice(0,50).join(',')}`;
+        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, dbg);
+        return { ok: s.ok, chatId, reply: dbg };
+      }
+
+      default: {
+        // fallback: try meme responder, then AI orchestrator
+        const meme = memeResponder(parsed.raw || rest);
+        if (meme) {
+          const s = await sendTelegram(TELEGRAM_TOKEN, chatId, meme);
+          return { ok: s.ok, chatId, reply: meme };
+        }
+        const ai = await aiOrchestrator(parsed.raw || rest, { chatId, fromId });
+        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, ai);
+        return { ok: s.ok, chatId, reply: ai };
+      }
     }
-
-    if(cmd === '/balance'){
-      const b = 'Balance: KES 0 (stub). Integrate with wallet API to show real balance.';
-      await sendTelegram(TELEGRAM_TOKEN, chatId, b);
-      return { ok: true, chatId, reply: b };
-    }
-
-    if(cmd === '/deposit' || cmd === '/withdraw' || cmd === '/history' || cmd === '/cancel'){
-      const r = `${cmd} is stubbed. Connect to payments and bet ledger to enable.`;
-      await sendTelegram(TELEGRAM_TOKEN, chatId, r);
-      return { ok: true, chatId, reply: r };
-    }
-
-    // admin-only commands
-    if(cmd === '/stats' && isAdmin(fromId)){
-      const s = 'Stats: queue length and uptime are available via infra. (stub)';
-      await sendTelegram(TELEGRAM_TOKEN, chatId, s);
-      return { ok: true, chatId, reply: s };
-    }
-
-    if(cmd === '/flushqueue' && isAdmin(fromId)){
-      // admin safety: do not implement destructive action here; return instruction
-      const flush = 'Flush queued jobs: please run the admin tool. (protected)';
-      await sendTelegram(TELEGRAM_TOKEN, chatId, flush);
-      return { ok: true, chatId, reply: flush };
-    }
-
-    if(cmd === '/debug' && isAdmin(fromId)){
-      const dbg = `Debug info (stub): ENV keys present: ${Object.keys(env).join(',')}`;
-      await sendTelegram(TELEGRAM_TOKEN, chatId, dbg);
-      return { ok: true, chatId, reply: dbg };
-    }
-
-    // meme responder
-    const meme = simpleMemeResponder(text);
-    if(meme){
-      await sendTelegram(TELEGRAM_TOKEN, chatId, meme);
-      return { ok: true, chatId, reply: meme };
-    }
-
-    // fallback: AI responder
-    const aiReply = await aiRespond(text, { chatId, fromId });
-    await sendTelegram(TELEGRAM_TOKEN, chatId, aiReply);
-    return { ok: true, chatId, reply: aiReply };
-
   } catch (err) {
     safeLog('COMMAND_HANDLER_ERROR', err && (err.stack || err.message));
     return { ok: false, error: err && err.message };
