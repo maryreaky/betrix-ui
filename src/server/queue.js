@@ -1,4 +1,48 @@
-﻿/* CHATID_QUEUE_INJECTED */
+﻿/* CHATID_QUEUE_PATCH_V1 */
+function resolveTelegramChatId(update){
+  if (!update || typeof update !== "object") return undefined;
+  if (update._resolvedChatId) return update._resolvedChatId;
+  if (update.chatId || update.chat_id) return update.chatId || update.chat_id;
+  if (update.message && update.message.chat && update.message.chat.id) return update.message.chat.id;
+  if (update.edited_message && update.edited_message.chat && update.edited_message.chat.id) return update.edited_message.chat.id;
+  if (update.callback_query && update.callback_query.message && update.callback_query.message.chat && update.callback_query.message.chat.id) return update.callback_query.message.chat.id;
+  try {
+    const stack = [update];
+    while (stack.length){
+      const obj = stack.pop();
+      if (!obj || typeof obj !== "object") continue;
+      if (obj.chat && obj.chat.id) return obj.chat.id;
+      for (const k of Object.keys(obj)) {
+        if (obj[k] && typeof obj[k] === "object") stack.push(obj[k]);
+      }
+    }
+  } catch(e){}
+  return undefined;
+}
+
+function _ensurePayloadHasChatId(payload){
+  try {
+    // if payload is stringified JSON, parse, inject, stringify back
+    if (typeof payload === 'string') {
+      try {
+        const p = JSON.parse(payload);
+        if (p && (p.chatId !== undefined)) return payload;
+        p.chatId = resolveTelegramChatId(p);
+        return JSON.stringify(p);
+      } catch(e) {
+        return payload;
+      }
+    }
+    // if payload already has chatId, return as-is
+    if (payload && payload.chatId !== undefined) return payload;
+    // otherwise merge
+    return Object.assign({}, payload || {}, { chatId: resolveTelegramChatId(payload) });
+  } catch(e) {
+    return payload;
+  }
+}
+/* END_CHATID_QUEUE_PATCH_V1 */
+/* CHATID_QUEUE_INJECTED */
 function resolveTelegramChatId(update){
   if (!update || typeof update !== "object") return undefined;
   if (update.message && update.message.chat && update.message.chat.id) return update.message.chat.id;
@@ -60,3 +104,25 @@ function createQueue(name = "betrix-jobs") {
 
 module.exports = { connection, createQueue };
 
+
+; (function(){
+  try {
+    if (typeof createQueue !== 'undefined') {
+      const origCreateQueue = createQueue;
+      createQueue = function(...a){
+        const q = origCreateQueue(...a);
+        if (q && typeof q.add === 'function') {
+          const _origAdd = q.add.bind(q);
+          q.add = function(...args){
+            try {
+              if (args.length >= 2) { args[1] = _ensurePayloadHasChatId(args[1]); }
+              else if (args.length === 1) { args[0] = _ensurePayloadHasChatId(args[0]); }
+            } catch(e){ console.error('QUEUE_ADD_WRAP_ERROR', e && e.stack ? e.stack : String(e)); }
+            return _origAdd(...args);
+          };
+        }
+        return q;
+      };
+    }
+  } catch(e){}
+})();
