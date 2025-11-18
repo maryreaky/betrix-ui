@@ -1,5 +1,5 @@
 ﻿/* Temporary safe handleCommand shim - keeps bot responsive while full handler is restored */
-const _nodeFetch = (...args) => require('node-fetch').then(m => m.default(...args));
+const _nodeFetch = async (...args) => { const nf = require('node-fetch'); const fn = (nf && nf.default) ? nf.default : nf; return fn(...args); };
 async function handleCommand(env, jobOrUpdate) {
   try {
     const payload = jobOrUpdate && (jobOrUpdate.payload || jobOrUpdate);
@@ -276,5 +276,6 @@ try {
  // END: fallback unconditional BRPOP consumer
 
 module.exports = { handleCommand };
+
 
 
