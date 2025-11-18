@@ -113,3 +113,30 @@ process.on("unhandledRejection", (reason) => {
 
 // Friendly startup heartbeat for Render logs
 console.error(new Date().toISOString(), "WORKER_STARTUP", { ts: new Date().toISOString() });
+// START: startup server-detect probe (appended by diagnostic)
+const _startup_probe = (async ()=>{
+  try {
+    const serverUrl = process.env.SERVER_URL || "https://betrix-ui.onrender.com/health";
+    const healthTimeout = Number(process.env.HEALTH_TIMEOUT || 5000);
+    console.error(new Date().toISOString(), "STARTUP_PROBE", { serverUrl, healthTimeout });
+    // lightweight fetch with timeout
+    const fetch = (...a) => import("node-fetch").then(m=>m.default(...a));
+    const controller = new AbortController();
+    const to = setTimeout(()=>controller.abort(), healthTimeout);
+    try {
+      const resp = await (await fetch(serverUrl, { signal: controller.signal, method: "GET" })).text();
+      clearTimeout(to);
+      console.error(new Date().toISOString(), "INFO_SERVER_DETECTED", { serverUrl });
+      // expose a runtime flag other code can read
+      globalThis.__SERVER_DETECTED = true;
+    } catch(e) {
+      clearTimeout(to);
+      console.error(new Date().toISOString(), "STARTUP_PROBE_FAIL", e && (e.stack || e.message));
+      globalThis.__SERVER_DETECTED = false;
+    }
+  } catch(e) {
+    console.error(new Date().toISOString(), "STARTUP_PROBE_FATAL", e && (e.stack || e.message));
+    globalThis.__SERVER_DETECTED = false;
+  }
+})();
+ // END: startup server-detect probe
