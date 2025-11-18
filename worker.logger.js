@@ -92,3 +92,24 @@ redisClient.on('error', (err) => {
   process.exit(1);
 });
 /* END HOTFIX */
+process.on("SIGTERM", () => {
+  console.error(new Date().toISOString(), "WORKER_SIGTERM received - graceful shutdown start");
+  try {
+    if (typeof globalThis.shutdown === "function") {
+      Promise.resolve(globalThis.shutdown()).catch(e => console.error("shutdown.error", e && e.stack || e));
+    }
+  } catch(e){ console.error("shutdown.try.error", e && e.stack || e); }
+  setTimeout(()=>{ console.error(new Date().toISOString(), "WORKER_SIGTERM exiting"); process.exit(0); }, 3000);
+});
+process.on("SIGINT", () => {
+  console.error(new Date().toISOString(), "WORKER_SIGINT received - exiting"); process.exit(0);
+});
+process.on("uncaughtException", (err) => {
+  console.error(new Date().toISOString(), "WORKER_UNCAUGHT_EXCEPTION", err && err.stack || err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error(new Date().toISOString(), "WORKER_UNHANDLED_REJECTION", reason && (reason.stack || reason));
+});
+
+// Friendly startup heartbeat for Render logs
+console.error(new Date().toISOString(), "WORKER_STARTUP", { ts: new Date().toISOString() });
