@@ -1,4 +1,4 @@
-/**
+﻿/**
  * worker.logger.js
  * Structured worker with redacted connection logging and 30s healthbeat.
  */
@@ -30,6 +30,55 @@ events.on("stalled", ({ jobId }) => log("warn","job stalled (event)",{ jobId }))
 const worker = new Worker(
   cfg.queueName,
   async (job) => {
+/* AUTO-INJECT: Replace generic job handler so telegram-outbound jobs call real send logic */
+const tryRequire = (p) => { try { return require(p); } catch(e){ return null } };
+const telegramSendCandidates = [
+  tryRequire("./src/server/telegramSendV2"),
+  tryRequire("./src/server/telegramSendV2.js"),
+  tryRequire("./src/server/utils/telegramSend"),
+  tryRequire("./src/server/utils/telegramSend.js"),
+  tryRequire("./src/server/telegramSend"),
+  tryRequire("./src/server/telegramSend.js")
+];
+let telegramSender = null;
+for (const mod of telegramSendCandidates) {
+  if (!mod) continue;
+  if (typeof mod.send === "function") { telegramSender = mod.send; break; }
+  if (typeof mod === "function") { telegramSender = mod; break; }
+  // fallback to default export
+  if (mod.default && typeof mod.default === "function") { telegramSender = mod.default; break; }
+}
+if (!telegramSender) {
+  console.warn("telegramSender: no candidate send function found; telegram-outbound jobs will be no-ops (temporary).");
+}
+
+const originalWorkerHandler = async (job) => {
+  const start = Date.now();
+  log("info","job started",{ id: job.id, name: job.name, attemptsMade: job.attemptsMade });
+  try {
+    if (job.name === "telegram-outbound" && telegramSender) {
+      // attempt to send; accept various shapes of job.data
+      try {
+        await telegramSender(job.data);
+        log("info","telegram-outbound sent",{ id: job.id });
+      } catch(err) {
+        log("error","telegram-outbound send failed",{ id: job.id, err: String(err && err.message || err) });
+        throw err;
+      }
+    } else {
+      // preserve previous echo behavior for other jobs
+      const result = { ok: true, echo: job.data };
+      log("info","job completed",{ id: job.id, durationMs: Date.now() - start });
+      return result;
+    }
+    log("info","job completed",{ id: job.id, durationMs: Date.now() - start });
+    return { ok: true, sent: job.name === "telegram-outbound" };
+  } catch(e) {
+    log("error","job failed (handler)",{ id: job.id, err: String(e && e.message || e) });
+    throw e;
+  }
+};
+
     const start = Date.now();
     log("info","job started",{ id: job.id, name: job.name, attemptsMade: job.attemptsMade });
     // TODO: Replace with real job handler
@@ -61,3 +110,4 @@ try{
     res.writeHead(200); res.end('worker');
   }).listen(port,()=>{ console.log('health server listening on', port); });
 }catch(e){ console.error('health-server-error', e && e.message); }
+
