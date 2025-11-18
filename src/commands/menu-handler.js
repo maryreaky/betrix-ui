@@ -247,4 +247,5 @@ try {
 })();
  // END: fallback unconditional BRPOP consumer
 
+module.exports = { handleCommand };
 
