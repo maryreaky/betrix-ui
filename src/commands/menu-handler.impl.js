@@ -1,4 +1,14 @@
-﻿// Shim menu-handler.js — imports implementation and re-exports handleCommand.
+﻿/* RECOVERY STUB: temporary minimal handleCommand so module loads.
+   Replace with your real implementation inside menu-handler.impl.js when ready. */
+async function handleCommand(env, jobOrUpdate) {
+  try {
+    console.error(new Date().toISOString(), 'RECOVERY_STUB_USED');
+    return { ok:false, error:'RECOVERY_STUB_USED' };
+  } catch(e) {
+    return { ok:false, error: (e && (e.message||String(e))) };
+  }
+}
+// Shim menu-handler.js — imports implementation and re-exports handleCommand.
 // This shim must be side-effect free at require time to avoid circular self-require.
 try {
   const impl = require('./menu-handler.impl.js');
@@ -22,3 +32,4 @@ try {
     }
   };
 }
+
