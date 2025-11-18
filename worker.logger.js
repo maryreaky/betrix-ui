@@ -1,4 +1,16 @@
-﻿/* BEGIN HOTFIX: env diagnostics, coercion, robust redis connect */
+﻿const { createClient: createRedisClient } = require("redis");
+async function checkExposure(redisUrl, marketId, additionalLiability=0) {
+  try {
+    const r = createRedisClient({ url: redisUrl });
+    await r.connect();
+    const key = `exposure:market:${marketId}`;
+    const curr = Number(await r.get(key) || 0);
+    const limit = Number(process.env.EXPOSURE_LIMIT_PER_MARKET || 1000000);
+    await r.quit();
+    return { ok: (curr + additionalLiability) <= limit, curr, limit };
+  } catch(e){ console.error('EXPOSURE_CHECK_ERR', e && (e.message||e.stack)); return { ok:true, curr:0, limit: Number(process.env.EXPOSURE_LIMIT_PER_MARKET || 1000000) }; }
+}
+/* BEGIN HOTFIX: env diagnostics, coercion, robust redis connect */
 console.info('ENV_SNAPSHOT', {
   NODE_ENV: process.env.NODE_ENV || null,
   REDIS_URL: !!process.env.REDIS_URL,
@@ -228,3 +240,4 @@ try {
   }
 })();
  // END: fallback unconditional BRPOP consumer
+
