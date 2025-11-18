@@ -316,3 +316,23 @@ async function handleFixedBet(env, job) {
     return { ok:false, error: e && e.message };
   }
 }
+
+async function handleDeposit(env, jobOrUpdate){
+  try {
+    const payload = jobOrUpdate.payload || jobOrUpdate;
+    const msg = payload.message || payload;
+    const chatId = msg.chat.id;
+    const fromId = msg.from.id;
+    const parsed = parseCommand(payload);
+    const rest = (parsed.rest || "").trim();
+    const amount = Number(rest) || 100;
+    const ref = `pay_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+    const inst = paymentAdapter.createPayment(ref, amount, { userId: fromId });
+    await sendTelegram(env.TELEGRAM_TOKEN, chatId, `Deposit instructions:\\n${inst.instructions}\\nWhen you have paid press the I Have Paid button (not implemented in mock). PaymentRef: ${ref}`);
+    return { ok:true, ref };
+  } catch(e){
+    safeLog('DEPOSIT_ERR', e && (e.stack||e.message));
+    return { ok:false, error: e && e.message };
+  }
+}
+
