@@ -278,3 +278,41 @@ async function handleCommand(env, jobOrUpdate) {
 }
 
 module.exports = { handleCommand };
+
+async function handleFixedBet(env, job) {
+  try {
+    const payload = job.payload || job;
+    const msg = payload.message || payload;
+    const chatId = msg.chat.id;
+    const fromId = msg.from.id;
+    const parsed = parseCommand(payload);
+    const rest = (parsed.rest || "").trim();
+    const parts = rest.split(/\s+/);
+    if (parts.length < 3) {
+      await sendTelegram(env.TELEGRAM_TOKEN, chatId, "Usage: /fixed_bet <marketId> <selectionId> <amount>");
+      return { ok:false, error:"invalid_args" };
+    }
+    const marketId = parts[0], selectionId = parts[1], amount = parts[2];
+    if (!/^\d+$/.test(amount)) { await sendTelegram(env.TELEGRAM_TOKEN, chatId, "Amount must be an integer."); return { ok:false, error:"invalid_amount" }; }
+    // simple odds lookup stub
+    const odds = 2.0;
+    const potential = Number(amount) * odds;
+    const betRef = `bet_${Date.now()}_${Math.floor(Math.random()*10000)}`;
+    // reserve funds
+    const reserveRes = await walletAdapter.reserve(fromId, Number(amount), betRef);
+    // persist bet (PG)
+    const client = await pgClient();
+    try {
+      await client.query('INSERT INTO bets(bet_ref, user_id, market_id, selection_id, stake_bigint, odds_decimal, potential_payout_bigint, reserve_id, status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[betRef, fromId, marketId, selectionId, Number(amount), odds, Math.round(potential), reserveRes.reserveId, 'PLACED']);
+      await client.query('INSERT INTO bet_events(bet_ref, event_type, actor, meta) VALUES($1,$2,$3,$4)', [betRef, 'PLACED', 'bot', JSON.stringify({reserveId: reserveRes.reserveId})]);
+    } finally {
+      await client.end();
+    }
+    const reply = `✅ Fixed Bet placed (stub)\nRef: ${betRef}\nMarket: ${marketId}\nSelection: ${selectionId}\nStake: ${amount}\nOdds: ${odds}\nPotential: ${potential}`;
+    await sendTelegram(env.TELEGRAM_TOKEN, chatId, reply);
+    return { ok:true, betRef };
+  } catch(e){
+    safeLog('FIXED_BET_ERROR', e && (e.stack || e.message));
+    return { ok:false, error: e && e.message };
+  }
+}
