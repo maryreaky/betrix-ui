@@ -248,8 +248,8 @@ try {
         try {
           const resp = (async () => {
   try {
-    const handler = require('./src/commands/menu-handler.js').handleCommand;
-    const result = await handler(process.env, job);
+    // REMOVED SELF-REQUIRE: would require same file and cause require-time execution
+    const result = await (typeof handleCommand === 'function' ? handleCommand(process.env, job) : (async()=>({ ok:false, error:'handleCommand not defined' }))());
     if (result && result.ok) {
       console.error(new Date().toISOString(), "HANDLER_OK", { jobId: job.jobId, chatId: result.chatId });
     } else {
@@ -311,4 +311,5 @@ if (typeof handleCommand === "undefined") {
 
 // Canonical export at EOF to avoid require-time issues
 module.exports = { handleCommand };
+
 
