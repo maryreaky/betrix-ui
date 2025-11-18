@@ -21,18 +21,32 @@ redis.connect()
 const app = express();
 app.use(bodyParser.json({ limit: '256kb' }));
 
-app.get('/health', (req,res) => res.json({ ok:true, ts:new Date().toISOString() }));
+// Token snapshot (supports TELEGRAM_TOKEN or TELEGRAM_BOT_TOKEN)
+const TOKEN = process.env.TELEGRAM_TOKEN || process.env.TELEGRAM_BOT_TOKEN || '';
+console.log('WEB_TOKEN_SNAPSHOT', { hasToken: !!TOKEN, tokenMasked: TOKEN ? ('***len:' + TOKEN.length) : false });
 
+// Env check (masked booleans only)
+app.get('/env', (req,res) => {
+  res.json({
+    ok: true,
+    env: {
+      TELEGRAM_TOKEN: !!process.env.TELEGRAM_TOKEN,
+      TELEGRAM_BOT_TOKEN: !!process.env.TELEGRAM_BOT_TOKEN,
+      REDIS_URL: !!process.env.REDIS_URL
+    },
+    ts: new Date().toISOString()
+  });
+});
+
+// Webhook — immediate ACK, enqueue to Redis
 app.post('/telegram/:token', async (req,res) => {
   const incoming = req.params.token;
-  const expected = process.env.TELEGRAM_TOKEN;
-  if (!expected) { console.warn('WEB_NO_TELEGRAM_TOKEN'); res.status(500).json({ ok:false, error:'missing token' }); return; }
-  if (incoming !== expected) { res.status(403).json({ ok:false, error:'invalid token' }); return; }
+  if (!TOKEN) { console.warn('WEB_NO_TELEGRAM_TOKEN'); res.status(500).json({ ok:false, error:'missing token' }); return; }
+  if (incoming !== TOKEN) { res.status(403).json({ ok:false, error:'invalid token' }); return; }
 
-  // Immediate ACK so Telegram won’t retry with 503s
+  // Immediate 200 to satisfy Telegram
   res.json({ ok:true });
 
-  // Enqueue update (non-blocking)
   const job = {
     jobId: 'wh-' + Date.now(),
     type: 'telegram_update',
