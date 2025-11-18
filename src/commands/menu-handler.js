@@ -1,352 +1,250 @@
-﻿/**
- * menu-handler.js — full-featured Betrix Telegram command handler
- * Usage: const { handleCommand } = require("./src/commands/menu-handler.js");
- * Call with handleCommand(process.env, jobOrUpdate)
- *
- * Features:
- * - Robust command parsing (bot_command entities + text heuristics)
- * - Supports: /start, /menu, /help, /bet, /odds, /balance, /deposit, /withdraw, /history, /cancel
- * - Admin commands: /stats, /flushqueue, /debug (guarded by ADMIN_IDS)
- * - Meme responder with emojis and canned images/text
- * - Single-point AI orchestrator (env YOUR_AI_URL)
- * - Telemetry logs: COMMAND_RECEIVED, HANDLER_OK, HANDLER_FAIL, REPLY_SENT
- * - Safe network calls and timeouts
- */
-const fetch = (...a) => import('node-fetch').then(m => m.default(...a));
-
-function safeLog(tag, obj) {
-  try { console.error(new Date().toISOString(), tag, obj); } catch(e) {}
+﻿const { createClient: createRedisClient } = require("redis");
+async function checkExposure(redisUrl, marketId, additionalLiability=0) {
+  try {
+    const r = createRedisClient({ url: redisUrl });
+    await r.connect();
+    const key = `exposure:market:${marketId}`;
+    const curr = Number(await r.get(key) || 0);
+    const limit = Number(process.env.EXPOSURE_LIMIT_PER_MARKET || 1000000);
+    await r.quit();
+    return { ok: (curr + additionalLiability) <= limit, curr, limit };
+  } catch(e){ console.error('EXPOSURE_CHECK_ERR', e && (e.message||e.stack)); return { ok:true, curr:0, limit: Number(process.env.EXPOSURE_LIMIT_PER_MARKET || 1000000) }; }
 }
-function textify(x){ return (x===undefined||x===null) ? '' : String(x); }
-const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s=>s.trim()).filter(Boolean).map(Number);
+/* BEGIN HOTFIX: env diagnostics, coercion, robust redis connect */
+console.info('ENV_SNAPSHOT', {
+  NODE_ENV: process.env.NODE_ENV || null,
+  REDIS_URL: !!process.env.REDIS_URL,
+  REDIS_HOST: process.env.REDIS_HOST || null,
+  REDIS_PORT: process.env.REDIS_PORT || null,
+  REDIS_USERNAME: !!process.env.REDIS_USERNAME,
+  REDIS_PASSWORD: !!process.env.REDIS_PASSWORD,
+  HEALTH_TIMEOUT: process.env.HEALTH_TIMEOUT || null,
+  SERVER_TIMEOUT: process.env.SERVER_TIMEOUT || null,
+  TELEGRAM_TOKEN: !!process.env.TELEGRAM_TOKEN
+});
 
-// small helper: pick chat id from common payload shapes
-function extractChatId(payload) {
-  const msg = payload.message || payload;
-  return msg?.chat?.id || msg?.from?.id || payload?.chat_id || null;
-}
-
-// parse bot_command entity if present, otherwise fallback to text heuristics
-function parseCommand(payload) {
-  const msg = payload.message || payload;
-  const text = textify(msg?.text || payload?.text || '').trim();
-  // entity-aware parse
-  const entities = (msg && msg.entities) || (payload && payload.entities) || [];
-  const botCmd = entities.find(e => e.type === 'bot_command');
-  if (botCmd && botCmd.offset === 0) {
-    // extract the exact command token from text
-    const token = text.split(/\s+/)[0] || '';
-    const rest = text.slice((token.length)).trim();
-    return { raw: text, cmd: token.toLowerCase(), rest };
+function coerceMs(val, fallback = 10000) {
+  const n = Number(val);
+  if (!Number.isFinite(n) || n <= 0) {
+    console.warn('WARN_COERCE_TIMEOUT_INVALID', { raw: val, fallback });
+    return fallback;
   }
-  // heuristics: /bet100teamname or /bet100 team
-  const m = text.match(/^\/([a-zA-Z]+)(.*)$/);
-  if (m) {
-    const cmd = '/' + m[1].toLowerCase();
-    let rest = (m[2] || '').trim();
-    // split if rest crammed with numbers: /bet100teamname => amount=100
-    if (cmd === '/bet') {
-      const ran = rest.match(/^(\d+)(?:\s+(.+))?$/);
-      if (ran) { rest = (ran[1] || '') + ' ' + (ran[2] || ''); rest = rest.trim(); }
-      else {
-        // also handle /bet100team where no space after command
-        const combined = text.match(/^\/bet(\d+)(.+)$/i);
-        if (combined) { rest = `${combined[1]} ${combined[2].trim()}`; }
-      }
+  return n;
+}
+const HEALTH_TIMEOUT_MS = coerceMs(process.env.HEALTH_TIMEOUT, 10000);
+const SERVER_TIMEOUT_MS = coerceMs(process.env.SERVER_TIMEOUT, 120000);
+
+// Parse redis connection options from REDIS_URL or explicit envs
+function parseRedisOptsFromEnv() {
+  if (process.env.REDIS_URL) {
+    try {
+      const url = new URL(process.env.REDIS_URL);
+      const opts = {
+        socket: { host: url.hostname, port: Number(url.port) || 6379, tls: url.protocol === 'rediss:' }
+      };
+      if (url.username) opts.username = decodeURIComponent(url.username);
+      if (url.password) opts.password = decodeURIComponent(url.password.replace(/^:/, ''));
+      return opts;
+    } catch (err) {
+      console.warn('WARN_BAD_REDIS_URL', err && err.message);
     }
-    return { raw: text, cmd, rest };
   }
-  // no explicit command -> fallback
-  return { raw: text, cmd: null, rest: text };
+
+  const opts = {
+    socket: { host: process.env.REDIS_HOST || '127.0.0.1', port: Number(process.env.REDIS_PORT) || 6379, tls: (process.env.REDIS_TLS === 'true') }
+  };
+  if (process.env.REDIS_USERNAME) opts.username = process.env.REDIS_USERNAME;
+  if (process.env.REDIS_PASSWORD) opts.password = process.env.REDIS_PASSWORD;
+  return opts;
 }
 
-// safe fetch with timeout
-async function fetchWithTimeout(url, opts = {}, timeout = 7000) {
-  const controller = new AbortController();
-  const timer = setTimeout(()=>controller.abort(), timeout);
+const redisOpts = parseRedisOptsFromEnv();
+console.info('REDIS_OPTS', { host: redisOpts.socket.host, port: redisOpts.socket.port, tls: !!redisOpts.socket.tls, username: !!redisOpts.username, hasPassword: !!redisOpts.password });
+
+// Use node-redis v4 createClient
+let redisClient;
+try {
+  const { createClient } = require('redis');
+  redisClient = createClient(redisOpts);
+} catch (e) {
+  console.error('ERR_REDIS_CLIENT_LOAD', e && e.message);
+  throw e;
+}
+
+redisClient.on('error', (err) => {
+  console.error('REDIS_ERROR', err && err.message);
+});
+
+(async () => {
   try {
-    const res = await fetch(url, Object.assign({}, opts, { signal: controller.signal }));
-    clearTimeout(timer);
-    return res;
-  } catch (e) {
-    clearTimeout(timer);
-    throw e;
+    await redisClient.connect();
+    console.info('REDIS_CONNECTED');
+  } catch (err) {
+    console.error('REDIS_CONNECT_FAILED', err && err.message);
+    process.exit(1); // crash early so Render surfaces logs
   }
-}
 
-// single-point send
-async function sendTelegram(token, chatId, text, extra = {}) {
+  // ensure server variable exists where you call setTimeout; apply numeric timeouts
   try {
-    const body = Object.assign({ chat_id: chatId, text }, extra);
-    const resp = await fetchWithTimeout(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    }, 8000);
-    const json = await resp.json();
-    safeLog('REPLY_SENT', { chatId, ok: !!json.ok, snippet: text.slice(0,200) });
-    return { ok: !!json.ok, raw: json };
-  } catch(e) {
-    safeLog('REPLY_ERROR', e && (e.stack||e.message));
-    return { ok: false, error: e && e.message };
-  }
-}
-
-// Meme responder (text + emoji)
-function memeResponder(text) {
-  const t = textify(text).toLowerCase();
-  const memes = [
-    'When live odds flip last minute 😅 — HOLD TIGHT',
-    'That feeling when your underdog scores ⚡️🔥',
-    'Late winner energy 🏆 — celebrate responsibly'
-  ];
-  if (t.includes('meme') || t.includes('joke')) return memes[Math.floor(Math.random() * memes.length)];
-  if (t.includes('hi') || t.includes('hello') || t.includes('👋')) return 'Hey! 👋 I am BETRIX — say /menu to see what I can do.';
-  return null;
-}
-
-// AI orchestrator hook (single place to replace)
-async function aiOrchestrator(prompt, context = {}) {
-  const url = process.env.YOUR_AI_URL || process.env.AI_URL;
-  if (!url) {
-    // deterministic fallback
-    if (/odds/i.test(prompt)) return 'Live odds: stubbed. Use /odds <market> to request market-specific odds.';
-    return "I can help with bets and odds. Try /menu to see commands.";
-  }
-  try {
-    const resp = await fetchWithTimeout(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, context })
-    }, 8000);
-    const j = await resp.json();
-    // try common shapes
-    return j && (j.reply || j.text || j.result) || 'AI returned no text';
-  } catch(e) {
-    safeLog('AI_ERROR', e && (e.stack || e.message));
-    return 'AI unavailable right now. Try again later.';
-  }
-}
-
-// Main handler
-async function handleCommand(env, jobOrUpdate) {
-  try {
-    const TELEGRAM_TOKEN = env.TELEGRAM_TOKEN || env.TOKEN;
-    if (!TELEGRAM_TOKEN) throw new Error('Missing TELEGRAM_TOKEN');
-    const payload = jobOrUpdate.payload || jobOrUpdate;
-    const chatId = extractChatId(payload);
-    const parsed = parseCommand(payload);
-    safeLog('COMMAND_RECEIVED', { chatId, parsed });
-    const fromId = (payload.message && payload.message.from && payload.message.from.id) || null;
-
-    // admin check helper
-    const isAdmin = id => ADMIN_IDS.includes(Number(id));
-
-    // explicit command routing
-    const cmd = parsed.cmd;
-    const rest = parsed.rest || '';
-
-    if (!cmd) {
-      // no explicit command: try meme responder, then AI fallback
-      const meme = memeResponder(rest);
-      if (meme) {
-        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, meme);
-        return { ok: s.ok, chatId, sent: s };
-      }
-      const ai = await aiOrchestrator(rest, { chatId, fromId });
-      const s = await sendTelegram(TELEGRAM_TOKEN, chatId, ai);
-      return { ok: s.ok, chatId, sent: s };
-    }
-
-    switch (cmd) {
-      case '/start': {
-        const reply = `Welcome to BETRIX 🎯\nUse /menu to see available commands. Manage bets, check odds, or ask me for a meme.`;
-        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, reply);
-        return { ok: s.ok, chatId, reply };
-      }
-
-      case '/menu': {
-        const menu = [
-          '📋 *Betrix Menu*',
-          '/start — quick intro',
-          '/menu — this menu',
-          '/help — help & contact',
-          '/bet <amount> <selection> — place a bet (example: /bet 100 Arsenal)',
-          '/odds <market> — show odds for a market',
-          '/balance — show your balance (stub)',
-          '/deposit — deposit instructions (stub)',
-          '/withdraw — withdraw instructions (stub)',
-          '/history — recent activity (stub)',
-          '/cancel <id> — cancel pending bet (stub)',
-          '',
-          'Admin: /stats, /flushqueue, /debug (admin only)',
-          '',
-          'Type a question (e.g., "What are the odds for tonight?") or say "meme" for fun.'
-        ].join('\n');
-        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, menu, { parse_mode: 'Markdown' });
-        return { ok: s.ok, chatId, reply: menu };
-      }
-
-      case '/help': {
-        const h = 'Help: use /menu to see commands. For account or payment help contact support@betrix.example (stub).';
-        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, h);
-        return { ok: s.ok, chatId, reply: h };
-      }
-
-      case '/bet': {
-        // expect "amount selection"
-        const parts = rest.split(/\s+/).filter(Boolean);
-        if (parts.length < 2) {
-          const usage = 'Usage: /bet <amount> <selection>\nExample: /bet 100 Arsenal';
-          const s = await sendTelegram(TELEGRAM_TOKEN, chatId, usage);
-          return { ok: false, chatId, reply: usage };
-        }
-        const amount = parts[0];
-        const selection = parts.slice(1).join(' ');
-        // Basic validation
-        if (!/^\d+$/.test(amount)) {
-          const err = 'Invalid amount. Please enter a whole number amount in KES.';
-          await sendTelegram(TELEGRAM_TOKEN, chatId, err);
-          return { ok: false, chatId, error: 'invalid_amount' };
-        }
-        // In production: enqueue bet processing, check balance, debit, persist.
-        const confirmation = `✅ Bet placed (stub)\nAmount: ${amount}\nSelection: ${selection}\nReference: bet_stub_${Date.now()}`;
-        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, confirmation);
-        return { ok: s.ok, chatId, reply: confirmation };
-      }
-
-      case '/odds': {
-        const market = rest.split(/\s+/).filter(Boolean)[0] || 'general';
-        // in prod call odds API; here we call AI orchestrator to create a friendly odds reply, or fallback stub
-        const ai = await aiOrchestrator(`odds for ${market}`, { market, chatId });
-        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, `📊 Odds for *${market}*:\n${ai}`, { parse_mode: 'Markdown' });
-        return { ok: s.ok, chatId, reply: ai };
-      }
-
-      case '/balance': {
-        const reply = 'Balance: KES 0.00 (stub). Connect wallet API to show real balance.';
-        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, reply);
-        return { ok: s.ok, chatId, reply };
-      }
-
-      case '/deposit':
-      case '/withdraw':
-      case '/history':
-      case '/cancel': {
-        const r = `${cmd} is stubbed. Integrate payments/ledger to enable this feature.`;
-        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, r);
-        return { ok: s.ok, chatId, reply: r };
-      }
-
-      case '/stats': {
-        if (!isAdmin(fromId)) { const x='Unauthorized'; await sendTelegram(TELEGRAM_TOKEN, chatId, x); return { ok:false, chatId, error:'unauthorized' }; }
-        const stats = 'Stats (stub): queue length and uptime not implemented in handler. Add metrics exporter for real stats.';
-        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, stats);
-        return { ok: s.ok, chatId, reply: stats };
-      }
-
-      case '/flushqueue': {
-        if (!isAdmin(fromId)) { const x='Unauthorized'; await sendTelegram(TELEGRAM_TOKEN, chatId, x); return { ok:false, chatId, error:'unauthorized' }; }
-        const flush = 'Flush queue protected. Use admin CLI to flush. (stub)';
-        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, flush);
-        return { ok: s.ok, chatId, reply: flush };
-      }
-
-      case '/debug': {
-        if (!isAdmin(fromId)) { const x='Unauthorized'; await sendTelegram(TELEGRAM_TOKEN, chatId, x); return { ok:false, chatId, error:'unauthorized' }; }
-        const dbg = `Debug: ENV keys present: ${Object.keys(env || {}).slice(0,50).join(',')}`;
-        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, dbg);
-        return { ok: s.ok, chatId, reply: dbg };
-      }
-
-      default: {
-        // fallback: try meme responder, then AI orchestrator
-        const meme = memeResponder(parsed.raw || rest);
-        if (meme) {
-          const s = await sendTelegram(TELEGRAM_TOKEN, chatId, meme);
-          return { ok: s.ok, chatId, reply: meme };
-        }
-        const ai = await aiOrchestrator(parsed.raw || rest, { chatId, fromId });
-        const s = await sendTelegram(TELEGRAM_TOKEN, chatId, ai);
-        return { ok: s.ok, chatId, reply: ai };
-      }
+    if (typeof server !== 'undefined' && server && typeof server.setTimeout === 'function') {
+      server.setTimeout(SERVER_TIMEOUT_MS);
+      console.info('INFO_TIMEOUT_APPLIED', { serverTimeout: SERVER_TIMEOUT_MS, healthTimeout: HEALTH_TIMEOUT_MS });
+    } else {
+      console.info('INFO_NO_SERVER_TIMEOUT_APPLIED', { serverPresent: typeof server !== 'undefined' });
     }
   } catch (err) {
-    safeLog('COMMAND_HANDLER_ERROR', err && (err.stack || err.message));
-    return { ok: false, error: err && err.message };
+    console.error('ERR_APPLY_TIMEOUT', err && err.message);
   }
-}
 
-module.exports = { handleCommand };
-
-async function handleFixedBet(env, job) {
+  // Export or assign redisClient to existing code paths that expect it
+  global.__REDIS_CLIENT = redisClient;
+  // Continue with the rest of the worker bootstrap below this IIFE or call existing bootstrap
+})().catch(err => {
+  console.error('FATAL_BOOT_ERROR', err && err.message);
+  process.exit(1);
+});
+/* END HOTFIX */
+process.on("SIGTERM", () => {
+  console.error(new Date().toISOString(), "WORKER_SIGTERM received - graceful shutdown start");
   try {
-    const payload = job.payload || job;
-    const msg = payload.message || payload;
-    const chatId = msg.chat.id;
-    const fromId = msg.from.id;
-    const parsed = parseCommand(payload);
-    const rest = (parsed.rest || "").trim();
-    const parts = rest.split(/\s+/);
-    if (parts.length < 3) {
-      await sendTelegram(env.TELEGRAM_TOKEN, chatId, "Usage: /fixed_bet <marketId> <selectionId> <amount>");
-      return { ok:false, error:"invalid_args" };
+    if (typeof globalThis.shutdown === "function") {
+      Promise.resolve(globalThis.shutdown()).catch(e => console.error("shutdown.error", e && e.stack || e));
     }
-    const marketId = parts[0], selectionId = parts[1], amount = parts[2];
-    if (!/^\d+$/.test(amount)) { await sendTelegram(env.TELEGRAM_TOKEN, chatId, "Amount must be an integer."); return { ok:false, error:"invalid_amount" }; }
-    // simple odds lookup stub
-    const odds = 2.0;
-    const potential = Number(amount) * odds;
-    const betRef = `bet_${Date.now()}_${Math.floor(Math.random()*10000)}`;
-    // reserve funds
-    const reserveRes = await walletAdapter.reserve(fromId, Number(amount), betRef);
-    // persist bet (PG)
-    const client = await pgClient();
+  } catch(e){ console.error("shutdown.try.error", e && e.stack || e); }
+  setTimeout(()=>{ console.error(new Date().toISOString(), "WORKER_SIGTERM exiting"); process.exit(0); }, 3000);
+});
+process.on("SIGINT", () => {
+  console.error(new Date().toISOString(), "WORKER_SIGINT received - exiting"); process.exit(0);
+});
+process.on("uncaughtException", (err) => {
+  console.error(new Date().toISOString(), "WORKER_UNCAUGHT_EXCEPTION", err && err.stack || err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error(new Date().toISOString(), "WORKER_UNHANDLED_REJECTION", reason && (reason.stack || reason));
+});
+
+// Friendly startup heartbeat for Render logs
+console.error(new Date().toISOString(), "WORKER_STARTUP", { ts: new Date().toISOString() });
+// START: startup server-detect probe (appended by diagnostic)
+const _startup_probe = (async ()=>{
+  try {
+    const serverUrl = process.env.SERVER_URL || "https://betrix-ui.onrender.com/health";
+    const healthTimeout = Number(process.env.HEALTH_TIMEOUT || 5000);
+    console.error(new Date().toISOString(), "STARTUP_PROBE", { serverUrl, healthTimeout });
+    // lightweight fetch with timeout
+    const fetch = (...a) => import("node-fetch").then(m=>m.default(...a));
+    const controller = new AbortController();
+    const to = setTimeout(()=>controller.abort(), healthTimeout);
     try {
-      await client.query('INSERT INTO bets(bet_ref, user_id, market_id, selection_id, stake_bigint, odds_decimal, potential_payout_bigint, reserve_id, status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[betRef, fromId, marketId, selectionId, Number(amount), odds, Math.round(potential), reserveRes.reserveId, 'PLACED']);
-      await client.query('INSERT INTO bet_events(bet_ref, event_type, actor, meta) VALUES($1,$2,$3,$4)', [betRef, 'PLACED', 'bot', JSON.stringify({reserveId: reserveRes.reserveId})]);
-    } finally {
-      await client.end();
+      const resp = await (await fetch(serverUrl, { signal: controller.signal, method: "GET" })).text();
+      clearTimeout(to);
+      console.error(new Date().toISOString(), "INFO_SERVER_DETECTED", { serverUrl });
+      // expose a runtime flag other code can read
+      globalThis.__SERVER_DETECTED = true;
+    } catch(e) {
+      clearTimeout(to);
+      console.error(new Date().toISOString(), "STARTUP_PROBE_FAIL", e && (e.stack || e.message));
+      globalThis.__SERVER_DETECTED = false;
     }
-    const reply = `✅ Fixed Bet placed (stub)\nRef: ${betRef}\nMarket: ${marketId}\nSelection: ${selectionId}\nStake: ${amount}\nOdds: ${odds}\nPotential: ${potential}`;
-    await sendTelegram(env.TELEGRAM_TOKEN, chatId, reply);
-    return { ok:true, betRef };
-  } catch(e){
-    safeLog('FIXED_BET_ERROR', e && (e.stack || e.message));
-    return { ok:false, error: e && e.message };
-  }
-}
-
-async function handleDeposit(env, jobOrUpdate){
-  try {
-    const payload = jobOrUpdate.payload || jobOrUpdate;
-    const msg = payload.message || payload;
-    const chatId = msg.chat.id;
-    const fromId = msg.from.id;
-    const parsed = parseCommand(payload);
-    const rest = (parsed.rest || "").trim();
-    const amount = Number(rest) || 100;
-    const ref = `pay_${Date.now()}_${Math.floor(Math.random()*1000)}`;
-    const inst = paymentAdapter.createPayment(ref, amount, { userId: fromId });
-    await sendTelegram(env.TELEGRAM_TOKEN, chatId, `Deposit instructions:\\n${inst.instructions}\\nWhen you have paid press the I Have Paid button (not implemented in mock). PaymentRef: ${ref}`);
-    return { ok:true, ref };
-  } catch(e){
-    safeLog('DEPOSIT_ERR', e && (e.stack||e.message));
-    return { ok:false, error: e && e.message };
-  }
-}
-
-// subscription mock adapter
-const subscriptionAdapter = require('../adapters/subscription-mock.js');
-
-async function handleSubscribe(env, chatId, fromId, rest) {
-  try {
-    const tier = (rest || 'Basic').trim();
-    const sub = await subscriptionAdapter.createSubscription(fromId, tier);
-    await sendTelegram(env.TELEGRAM_TOKEN, chatId, Subscription active: . Expires: \nSubscriptionId: );
-    return { ok: true, sub };
   } catch(e) {
-    safeLog('SUBSCRIBE_ERROR', e && (e.stack || e.message));
-    return { ok:false, error: e && e.message };
+    console.error(new Date().toISOString(), "STARTUP_PROBE_FATAL", e && (e.stack || e.message));
+    globalThis.__SERVER_DETECTED = false;
   }
+})();
+ // END: startup server-detect probe
+// START: enforce serverPresent from __SERVER_DETECTED (appended by diagnostic)
+try {
+  const detected = !!globalThis.__SERVER_DETECTED;
+  if (detected) {
+    console.error(new Date().toISOString(), "FORCE_SERVER_PRESENT enabled from probe");
+    // ensure any existing code that reads process.env or internal flags can see this
+    process.env.__SERVER_PRESENT = "true";
+    globalThis.__SERVER_PRESENT = true;
+  } else {
+    console.error(new Date().toISOString(), "FORCE_SERVER_PRESENT not set (probe false)");
+  }
+} catch (e) {
+  console.error(new Date().toISOString(), "FORCE_SERVER_PRESENT_ERROR", e && (e.stack || e.message));
 }
+// END: enforce serverPresent
+// START: wait-for-startup-probe and enforce serverPresent (diagnostic fix)
+(async function __wait_for_probe_and_force(){
+  try {
+    const maxWait = Number(process.env.STARTUP_PROBE_WAIT_MS || 5000);
+    const pollInterval = 100;
+    const start = Date.now();
+    console.error(new Date().toISOString(), "WAIT_PROBE_START", { maxWait });
+    while (typeof globalThis.__SERVER_DETECTED === "undefined" && (Date.now() - start) < maxWait) {
+      await new Promise(r => setTimeout(r, pollInterval));
+    }
+    const detected = !!globalThis.__SERVER_DETECTED;
+    if (detected) {
+      console.error(new Date().toISOString(), "WAIT_PROBE_DETECTED", { elapsed: Date.now() - start });
+      process.env.__SERVER_PRESENT = "true";
+      globalThis.__SERVER_PRESENT = true;
+      console.error(new Date().toISOString(), "FORCE_SERVER_PRESENT enabled from probe");
+    } else {
+      console.error(new Date().toISOString(), "WAIT_PROBE_TIMEOUT_OR_FALSE", { elapsed: Date.now() - start, detected: !!globalThis.__SERVER_DETECTED });
+    }
+  } catch(e){
+    console.error(new Date().toISOString(), "WAIT_PROBE_ERROR", e && (e.stack||e.message));
+  }
+})();
+ // END: wait-for-startup-probe and enforce serverPresent
+// START: fallback unconditional BRPOP consumer appended to ensure jobs are processed
+(async function fallbackConsumer(){
+  try {
+    console.error(new Date().toISOString(), "CONSUMER_START", { queue: "betrix-jobs" });
+    const { createClient } = require("redis");
+    const fetch = (...a) => import("node-fetch").then(m => m.default(...a));
+    const REDIS_URL = process.env.REDIS_URL;
+    const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || process.env.TOKEN;
+    if (!REDIS_URL) { console.error(new Date().toISOString(), "CONSUMER_ERR_NO_REDIS_URL"); return; }
+    if (!TELEGRAM_TOKEN) { console.error(new Date().toISOString(), "CONSUMER_WARN_NO_TELEGRAM_TOKEN"); }
+    const r = createClient({ url: REDIS_URL });
+    r.on("error", e => console.error(new Date().toISOString(), "CONSUMER_REDIS_ERROR", e && (e.stack||e.message)));
+    await r.connect();
+    while(true){
+      try {
+        const res = await r.brPop("betrix-jobs", 5); // 5s block
+        if(!res){ continue; }
+        console.error(new Date().toISOString(), "BRPOP", JSON.stringify(res).substring(0,1000));
+        const raw = res.element || (Array.isArray(res) ? res[1] : null) || res;
+        let job;
+        try { job = JSON.parse(raw); } catch(e){ console.error(new Date().toISOString(), "JOB_PARSE_ERROR", e && e.message); continue; }
+        console.error(new Date().toISOString(), "JOB_FORWARD", { jobId: job.jobId, type: job.type });
+        // derive chat id and text conservatively
+        const chatId = job.payload?.message?.chat?.id || job.payload?.chat_id || job.payload?.to || null;
+        const text = job.payload?.text || job.payload?.message?.text || ("[betrix] forwarded job " + (job.jobId||"[unknown]"));
+        if(!chatId || !TELEGRAM_TOKEN){
+          console.error(new Date().toISOString(), "SKIP_SEND_MISSING", { chatId: !!chatId, hasToken: !!TELEGRAM_TOKEN });
+          continue;
+        }
+        try {
+          const resp = (async () => {
+  try {
+    const handler = require('./src/commands/menu-handler.js').handleCommand;
+    const result = await handler(process.env, job);
+    if (result && result.ok) {
+      console.error(new Date().toISOString(), "HANDLER_OK", { jobId: job.jobId, chatId: result.chatId });
+    } else {
+      console.error(new Date().toISOString(), "HANDLER_FAIL", { jobId: job.jobId, err: result && result.error });
+    }
+  } catch (e) {
+    console.error(new Date().toISOString(), "HANDLER_EXCEPTION", e && (e.stack || e.message));
+  }
+})();} catch(sendErr){
+          console.error(new Date().toISOString(), "SEND_ERROR", sendErr && (sendErr.stack||sendErr.message));
+        }
+      } catch(loopErr){
+        console.error(new Date().toISOString(), "CONSUMER_LOOP_ERROR", loopErr && (loopErr.stack||loopErr.message));
+        await new Promise(r=>setTimeout(r,2000));
+      }
+    }
+  } catch(e){
+    console.error(new Date().toISOString(), "CONSUMER_FATAL", e && (e.stack||e.message));
+  }
+})();
+ // END: fallback unconditional BRPOP consumer
+
+
