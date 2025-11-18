@@ -223,7 +223,7 @@ try {
         try {
           const resp = (async () => {
   try {
-    const handler = require('./src/commands/menu-handler.js').handleCommand;
+
     const result = await handler(process.env, job);
     if (result && result.ok) {
       console.error(new Date().toISOString(), "HANDLER_OK", { jobId: job.jobId, chatId: result.chatId });
@@ -281,3 +281,4 @@ if (typeof handleCommand === "undefined") {
   }
   module.exports = { handleCommand };
 }
+

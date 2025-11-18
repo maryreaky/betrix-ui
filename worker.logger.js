@@ -224,7 +224,42 @@ try {
           const resp = (async () => {
   try {
     const handler = require('./src/commands/menu-handler.js').handleCommand;
-    const result = await handler(process.env, job);
+    const result = /* defensive menu-handler loader */
+let _mh_mod = null;
+let _mh_handler = null;
+try {
+  _mh_mod = require('./src/commands/menu-handler.js');
+  _mh_handler = (_mh_mod && _mh_mod.handleCommand) || (typeof _mh_mod === "function" ? _mh_mod : null);
+  console.error(new Date().toISOString(), "HANDLER_MODULE_LOADED", { type: typeof _mh_mod, keys: Object.keys(_mh_mod||{}) });
+} catch(e) {
+  console.error(new Date().toISOString(), "HANDLER_MODULE_LOAD_ERR", e && (e.stack || e.message));
+  _mh_handler = null;
+}
+
+/* call the handler if available, otherwise send a safe degraded reply */
+if (typeof _mh_handler === 'function') {
+  try {
+    const _res = await _mh_handler(process.env, job);
+    if (_res && _res.ok) console.error(new Date().toISOString(), 'HANDLER_OK', { jobId: job.jobId });
+    else console.error(new Date().toISOString(), 'HANDLER_FAIL', { jobId: job.jobId, err: _res && _res.error });
+  } catch(e) {
+    console.error(new Date().toISOString(), 'HANDLER_CALL_EXCEPTION', e && (e.stack||e.message));
+  }
+} else {
+  console.error(new Date().toISOString(), 'HANDLER_NOT_AVAILABLE', { jobId: job.jobId });
+  try {
+    const chatId = job.payload && job.payload.message && job.payload.message.chat && job.payload.message.chat.id;
+    if (chatId && process.env.TELEGRAM_TOKEN) {
+      await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: 'Service degraded: handler unavailable. Ops will investigate.' })
+      });
+    }
+  } catch(e) {
+    console.error(new Date().toISOString(), 'HANDLER_NOT_AVAILABLE_NOTIFY_ERR', e && (e.stack||e.message));
+  }
+}
     if (result && result.ok) {
       console.error(new Date().toISOString(), "HANDLER_OK", { jobId: job.jobId, chatId: result.chatId });
     } else {
@@ -246,5 +281,6 @@ try {
   }
 })();
  // END: fallback unconditional BRPOP consumer
+
 
 
