@@ -1,4 +1,29 @@
-﻿const { createClient: createRedisClient } = require("redis");
+﻿// AUTO-INSERT: ensure handleCommand exists to prevent require-time ReferenceError.
+// If your file defines handleCommand later, this guard will not overwrite it.
+if (typeof handleCommand === "undefined") {
+  let _fetch_impl;
+  try { const nf = require("node-fetch"); _fetch_impl = (nf && nf.default) ? nf.default : nf; } catch(e) { _fetch_impl = (typeof fetch !== "undefined") ? fetch : null; }
+  async function handleCommand(env, jobOrUpdate) {
+    try {
+      const payload = jobOrUpdate && (jobOrUpdate.payload || jobOrUpdate);
+      const chatId = payload && payload.message && payload.message.chat && payload.message.chat.id;
+      const text = (payload && payload.message && payload.message.text) || (payload && payload.text) || "";
+      const reply = "BETRIX (temporary handler): received: " + (text || "<no-text>");
+      if (chatId && env && env.TELEGRAM_TOKEN && _fetch_impl) {
+        const url = "https://api.telegram.org/bot" + env.TELEGRAM_TOKEN + "/sendMessage";
+        try { await _fetch_impl(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: reply }) }); }
+        catch(err){ console.error(new Date().toISOString(),"GUARD_SHIM_SEND_ERR", err && (err.stack||err.message)); }
+      } else {
+        console.error(new Date().toISOString(),"GUARD_SHIM_NO_SEND",{ chatId, hasToken: !!(env && env.TELEGRAM_TOKEN), hasFetch: !!_fetch_impl });
+      }
+      return { ok:true, shim:true, chatId };
+    } catch(err) {
+      console.error(new Date().toISOString(),"GUARD_SHIM_ERR", err && (err.stack||err.message));
+      return { ok:false, error: err && err.message };
+    }
+  }
+}
+const { createClient: createRedisClient } = require("redis");
 async function checkExposure(redisUrl, marketId, additionalLiability=0) {
   try {
     const r = createRedisClient({ url: redisUrl });
@@ -281,4 +306,5 @@ if (typeof handleCommand === "undefined") {
 }
 
 module.exports = { handleCommand };
+
 
