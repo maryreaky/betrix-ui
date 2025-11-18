@@ -4,3 +4,6 @@
 }
 
 module.exports = { handleCommand };
+
+Object.assign(module.exports,{handleCommand});
+
