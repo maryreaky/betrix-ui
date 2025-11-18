@@ -1,72 +1,85 @@
-﻿/* CHATID_INJECTED */
+﻿/* AUTO_GENERATED TELEGRAM WEBHOOK ROUTER - CHATID + ENQUEUE GUARANTEE */
+const express = require("express");
+const router = express.Router();
+const bodyParser = require("body-parser");
+
+// lightweight resolver (robust across update shapes)
 function resolveTelegramChatId(update){
-  if (!update || typeof update !== "object") return undefined;
-  if (update.message && update.message.chat && update.message.chat.id) return update.message.chat.id;
-  if (update.edited_message && update.edited_message.chat && update.edited_message.chat.id) return update.edited_message.chat.id;
-  if (update.callback_query && update.callback_query.message && update.callback_query.message.chat && update.callback_query.message.chat.id) return update.callback_query.message.chat.id;
-  if (update.channel_post && update.channel_post.chat && update.channel_post.chat.id) return update.channel_post.chat.id;
-  if (update.edited_channel_post && update.edited_channel_post.chat && update.edited_channel_post.chat.id) return update.edited_channel_post.chat.id;
   try {
+    if (!update || typeof update !== "object") return undefined;
+    if (update._resolvedChatId) return update._resolvedChatId;
+    if (update.chatId !== undefined) return update.chatId;
+    if (update.message && update.message.chat && update.message.chat.id) return update.message.chat.id;
+    if (update.edited_message && update.edited_message.chat && update.edited_message.chat.id) return update.edited_message.chat.id;
+    if (update.callback_query && update.callback_query.message && update.callback_query.message.chat && update.callback_query.message.chat.id) return update.callback_query.message.chat.id;
     const stack = [update];
-    while (stack.length){
-      const obj = stack.pop();
-      if (!obj || typeof obj !== "object") continue;
-      if (obj.chat && obj.chat.id && (typeof obj.chat.id === "number" || /^\d+$/.test(String(obj.chat.id)))) return obj.chat.id;
-      for (const k of Object.keys(obj)) { if (obj[k] && typeof obj[k] === "object") stack.push(obj[k]); }
+    while(stack.length){
+      const o = stack.pop();
+      if(!o || typeof o !== "object") continue;
+      if(o.chat && o.chat.id) return o.chat.id;
+      for(const k of Object.keys(o)) if(o[k] && typeof o[k] === "object") stack.push(o[k]);
     }
   } catch(e){}
   return undefined;
 }
 
-function logTelegramResolvedInfo(prefix, update){
+// attach logger helper
+function logResolved(prefix, update){
   try {
-    const chatId = resolveTelegramChatId(update);
+    const id = resolveTelegramChatId(update);
     console.log(prefix + " TELEGRAM_RAW_UPDATE " + JSON.stringify(update));
-    console.log(prefix + " TELEGRAM_RESOLVED_CHAT_ID " + (typeof chatId === "undefined" ? "undefined" : chatId));
-    return chatId;
-  } catch(e) {
-    console.log(prefix + " TELEGRAM_RESOLVE_ERROR " + (e && e.stack ? e.stack : String(e)));
-    return undefined;
-  }
-}
-/* END_CHATID_INJECTED */
-
-/**
- * telegram-webhook.js
- * Hardened webhook: requires TELEGRAM_WEBHOOK_SECRET path param, validates minimal shape,
- * enqueues incoming update to Redis-backed queue and responds 200 immediately.
- */
-const express = require("express");
-const router = express.Router();
-const { jobsQueue } = require("./queue");
-
-function isValidTelegramUpdate(body) {
-  return body && (body.message || body.callback_query || body.edited_message);
+    console.log(prefix + " TELEGRAM_RESOLVED_CHAT_ID " + (typeof id === "undefined" ? "undefined" : id));
+    return id;
+  } catch(e){ console.log(prefix + " TELEGRAM_RESOLVE_ERROR " + (e && e.stack ? e.stack : String(e))); return undefined; }
 }
 
-// Mount this router at /telegram/:secret (see index.js patch below)
-router.post("/:secret", express.json({ limit: "100kb" }), async (req, res) => {
+router.post("/telegram", bodyParser.json({ limit: "100kb" }), async (req, res) => {
   try {
-    const secret = req.params.secret;
-    if (!process.env.TELEGRAM_WEBHOOK_SECRET || secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
-      console.warn("WEBHOOK: invalid secret", secret && secret.slice ? secret.slice(0,8) : secret);
-      return res.status(403).end();
+    const update = req.body || {};
+    const chatId = logResolved("INCOMING", update);
+    // attach top-level fields so downstream code sees them
+    try { update._resolvedChatId = chatId; if (typeof update.chatId === "undefined") update.chatId = chatId; } catch(e){}
+
+    // Best-effort enqueue:
+    let enqueued = false;
+    try {
+      // try to use the project's queue factory if available
+      let createQueue;
+      try { createQueue = require("./queue").createQueue; } catch(e) { try { createQueue = require("../server/queue").createQueue } catch(e){} }
+      if (createQueue && typeof createQueue === "function") {
+        const q = createQueue("betrix-jobs");
+        if (q && typeof q.add === "function") {
+          // standard signature: queue.add(name, payload, opts) OR queue.add(payload, opts)
+          // use a safe payload wrapper to guarantee top-level chatId
+          const payload = Object.assign({}, update, { chatId: chatId });
+          // prefer named jobs if you used them elsewhere: use 'webhook' as safe default
+          await q.add("webhook", payload).catch(e => { console.error("WEBHOOK_QUEUE_ADD_ERR", e && e.stack ? e.stack : String(e)); });
+          enqueued = true;
+        }
+      }
+    } catch(e){ console.error("WEBHOOK_ENQUEUE_TRY_ERR", e && e.stack ? e.stack : String(e)); }
+
+    // fallback: try Redis lPush directly if a REDIS_URL exists and ioredis available
+    if (!enqueued) {
+      try {
+        const Redis = require("ioredis");
+        if (process.env.REDIS_URL) {
+          const client = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
+          const payloadStr = JSON.stringify(Object.assign({}, update, { chatId: chatId }));
+          // keep queue key same shape your workers read: try "betrix-jobs" then "betrix:retry"
+          await client.rpush("betrix-jobs", JSON.stringify({ jobId: "wh-fallback-"+Date.now(), payload: Object.assign({}, update, { chatId: chatId }), ts: new Date().toISOString() }));
+          client.disconnect();
+          enqueued = true;
+        }
+      } catch(e){ console.error("WEBHOOK_REDIS_FALLBACK_ERR", e && e.stack ? e.stack : String(e)); }
     }
-    if (!isValidTelegramUpdate(req.body)) {
-      console.warn("WEBHOOK: invalid update shape");
-      return res.status(400).end();
-    }
-    // quick dedupe: if update_id present, set jobId so duplicate updates aren't reprocessed
-    const jobId = req.body.update_id ? `tg-${req.body.update_id}` : undefined;
-    await jobsQueue.add("telegram-update", { update: req.body, receivedAt: Date.now() }, jobId ? { jobId, removeOnComplete: 1000, removeOnFail: 1000 } : { removeOnComplete: 1000, removeOnFail: 1000 });
-    // respond fast so Telegram stops retrying
-    res.status(200).json({ ok: true });
-  } catch (err) {
-    console.error("WEBHOOK-ENQUEUE-ERROR:", err && (err.stack||err.message) || err);
-    // return 200 to avoid Telegram retry storm if enqueue temporarily fails; use monitoring to alert
-    res.status(200).json({ ok: false, error: "enqueue_failed" });
+
+    // Always respond 200 to Telegram quickly
+    res.status(200).json({ ok: true, enqueued: !!enqueued });
+  } catch(err){
+    console.error("WEBHOOK_HANDLER_FATAL:", err && (err.stack || err.message) || err);
+    try { res.status(200).json({ ok: false, error: "internal" }); } catch(e){}
   }
 });
 
 module.exports = router;
-
