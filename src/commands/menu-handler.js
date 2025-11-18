@@ -336,3 +336,17 @@ async function handleDeposit(env, jobOrUpdate){
   }
 }
 
+// subscription mock adapter
+const subscriptionAdapter = require('../adapters/subscription-mock.js');
+
+async function handleSubscribe(env, chatId, fromId, rest) {
+  try {
+    const tier = (rest || 'Basic').trim();
+    const sub = await subscriptionAdapter.createSubscription(fromId, tier);
+    await sendTelegram(env.TELEGRAM_TOKEN, chatId, Subscription active: . Expires: \nSubscriptionId: );
+    return { ok: true, sub };
+  } catch(e) {
+    safeLog('SUBSCRIBE_ERROR', e && (e.stack || e.message));
+    return { ok:false, error: e && e.message };
+  }
+}
