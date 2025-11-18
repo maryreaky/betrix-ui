@@ -145,8 +145,9 @@ try{
     res.writeHead(200); res.end('worker');
   }).listen(port,()=>{ console.log('health server listening on', port); });
   if (serverTimeout && !Number.isNaN(serverTimeout)) {
-    try { server.setTimeout(Number(serverTimeout)); }
+    try { server.setTimeout(Number(Number(serverTimeout))); }
     catch(e){ console.error("WEBHOOK-BOOT-ERROR setting server timeout", String(e && e.message || e)); }
   }
 }catch(e){ console.error('health-server-error', e && e.message); }
+
 
