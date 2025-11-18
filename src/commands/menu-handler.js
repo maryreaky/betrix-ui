@@ -18,10 +18,10 @@ async function handleCommand(env, jobOrUpdate) {
     const payload = jobOrUpdate && (jobOrUpdate.payload || jobOrUpdate);
     const chatId = payload && payload.message && payload.message.chat && payload.message.chat.id;
     const text = (payload && payload.message && payload.message.text) || (payload && payload.text) || '';
-    const reply = BETRIX (temporary handler): received: ;
+    const reply = `BETRIX (temporary handler): received: ${text || \"<no-text>\"}`;
     if (chatId && env && env.TELEGRAM_TOKEN) {
       try {
-        await _fetch(https://api.telegram.org/bot/sendMessage, {
+        await _fetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chat_id: chatId, text: reply })
@@ -40,3 +40,4 @@ async function handleCommand(env, jobOrUpdate) {
 }
 
 module.exports = { handleCommand };
+
