@@ -223,8 +223,8 @@ try {
         try {
           const resp = (async () => {
   try {
-    const handler = require('./src/commands/menu-handler.js').handleCommand.handleCommand;
-    const result = await (async ()=>{ try { if(typeof handler !== 'function'){ console.error(new Date().toISOString(), 'HANDLER_TYPE_ERROR', { type: typeof handler }); return { ok:false, error:'handler_not_function' }; } return await handler(process.env, job); } catch(e){ console.error(new Date().toISOString(), 'HANDLER_CALL_EXCEPTION', e && (e.stack||e.message)); return { ok:false, error: e && e.message }; } })();
+    const handler = require('./src/commands/menu-handler.js').handleCommand;
+    const result = await handler(process.env, job);
     if (result && result.ok) {
       console.error(new Date().toISOString(), "HANDLER_OK", { jobId: job.jobId, chatId: result.chatId });
     } else {
@@ -246,6 +246,5 @@ try {
   }
 })();
  // END: fallback unconditional BRPOP consumer
-
 
 
