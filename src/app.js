@@ -7,6 +7,11 @@ const redisClient = new Redis(process.env.REDIS_URL);
 
 app.use(bodyParser.json());
 
+// Health check route for Render
+app.get("/", (req, res) => {
+  res.send("OK");
+});
+
 app.post("/telegram", (req, res) => {
   const update = req.body;
   redisClient.lpush("telegram:webhook:queue", JSON.stringify({
@@ -19,7 +24,7 @@ app.post("/telegram", (req, res) => {
 // Export the app so Render can mount
 export default app;
 
-// ? Critical: bind to Render’s PORT
+// Bind to Render’s PORT
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
