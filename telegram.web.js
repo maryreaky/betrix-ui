@@ -1,103 +1,90 @@
-﻿const express = require("express");
-const bodyParser = require("body-parser");
-const { createClient } = require("redis");
+﻿/**
+ * Entry wrapper to ensure runtime sees TELEGRAM_WEBHOOK_SECRET and to add tolerant webhook mount.
+ * Temporary debug helper.
+ */
+const fs = require("fs");
+const express = require("express");
 
-// Robust logger (timestamps)
-function log(...args){ console.log(new Date().toISOString(), ...args); }
-
-// Validate env quickly
-const TOKEN = process.env.TELEGRAM_TOKEN || process.env.TELEGRAM_BOT_TOKEN || "";
-log("ENV_SNAPSHOT", { NODE_ENV: process.env.NODE_ENV || null, TELEGRAM_TOKEN_present: !!process.env.TELEGRAM_TOKEN, TELEGRAM_BOT_TOKEN_present: !!process.env.TELEGRAM_BOT_TOKEN, REDIS_URL_present: !!process.env.REDIS_URL });
-
-// Graceful global error handlers to capture crashes into logs
-process.on("uncaughtException", (err) => { log("UNCAUGHT_EXCEPTION", err && err.stack || err); setTimeout(()=>process.exit(1),1000); });
-process.on("unhandledRejection", (err) => { log("UNHANDLED_REJECTION", err && (err.stack || err)); });
-
-function parseRedisOpts() {
-  if (!process.env.REDIS_URL) return null;
+function loadSecretFile() {
   try {
-    const url = new URL(process.env.REDIS_URL);
-    return {
-      socket: { host: url.hostname, port: Number(url.port || 6379), tls: url.protocol === "rediss:" },
-      username: url.username || undefined,
-      password: url.password ? url.password.replace(/^:/,'') : undefined
-    };
-  } catch (e) {
-    log("REDIS_URL_PARSE_FAIL", e && e.message);
-    return null;
-  }
-}
-
-const redisOpts = parseRedisOpts();
-let redis;
-if (redisOpts) {
-  redis = createClient(redisOpts);
-  redis.on("error", e => log("REDIS_ERROR", e && e.message));
-  redis.connect()
-    .then(()=>log("REDIS_CONNECTED"))
-    .catch(e => { log("REDIS_CONNECT_FAIL", e && e.message); /* do NOT exit immediately: keep web process live so health check can show degraded */ });
-} else {
-  log("REDIS_SKIPPED", "no REDIS_URL found");
-}
-
-// Express app
-const app = express();
-app.use(bodyParser.json({ limit: "256kb" }));
-
-// Fast health endpoint (never blocks)
-app.get("/health", (req,res) => {
-  res.status(200).json({ ok: true, ts: new Date().toISOString() });
-});
-
-// Safe env endpoint
-app.get("/env", (req,res) => {
-  res.json({
-    ok: true,
-    env: {
-      TELEGRAM_TOKEN: !!process.env.TELEGRAM_TOKEN,
-      TELEGRAM_BOT_TOKEN: !!process.env.TELEGRAM_BOT_TOKEN,
-      REDIS_URL: !!process.env.REDIS_URL
-    },
-    ts: new Date().toISOString()
-  });
-});
-
-// Webhook handler — immediate ACK; enqueue if redis available
-app.post("/telegram/:token", async (req,res) => {
-  try {
-    const incoming = req.params.token;
-    const expected = TOKEN;
-    if (!expected) {
-      log("WEB_MISSING_TOKEN");
-      res.status(500).json({ ok:false, error: "missing token" });
-      return;
-    }
-    if (incoming !== expected) {
-      res.status(403).json({ ok:false, error: "invalid token" });
-      return;
-    }
-
-    // ACK immediately so Telegram doesn't retry
-    res.json({ ok:true });
-
-    // Enqueue non-blocking
-    const job = { jobId: "wh-" + Date.now(), payload: req.body, ts: new Date().toISOString() };
-    if (redis && redis.lPush) {
-      try {
-        await redis.lPush("betrix-jobs", JSON.stringify(job));
-        log("ENQUEUED", job.jobId);
-      } catch (e) {
-        log("ENQUEUE_FAIL", e && e.message);
+    const p = "/etc/secrets/TELEGRAM_WEBHOOK_SECRET";
+    if (fs.existsSync(p)) {
+      const v = fs.readFileSync(p, "utf8").trim();
+      if (v) {
+        process.env.TELEGRAM_WEBHOOK_SECRET = v;
+        console.log("SECRET_FILE_LOADED", { path: p, length: v.length });
       }
-    } else {
-      log("ENQUEUE_SKIPPED", "redis not connected");
     }
-  } catch (err) {
-    log("WEB_HANDLER_ERROR", err && err.stack || err);
-    try { res.status(500).json({ ok:false, error: "internal" }); } catch(e){}
-  }
+  } catch (e) { console.error("SECRET_FILE_LOAD_ERR", e && e.stack ? e.stack : String(e)); }
+}
+
+loadSecretFile();
+
+console.log("ENTRY_ENV_SNAPSHOT", {
+  TELEGRAM_WEBHOOK_SECRET_present: !!process.env.TELEGRAM_WEBHOOK_SECRET,
+  TELEGRAM_TOKEN_present: !!process.env.TELEGRAM_TOKEN,
+  WEBHOOK_SECRET_present: !!process.env.WEBHOOK_SECRET,
+  REDIS_URL_present: !!process.env.REDIS_URL
 });
 
-// Start server
-const port = Number(process.env.PORT) || 3000;
-app.listen(port, () => log("WEB_LISTENING", { port }));
+let app;
+try {
+  app = require("./src/app");
+  if (app && app.listen) {
+    console.log("LOADED_APP_FROM_src_app");
+  } else if (app && app.default && app.default.listen) {
+    app = app.default;
+    console.log("LOADED_APP_FROM_src_app_default");
+  } else {
+    throw new Error("src/app did not export express app");
+  }
+} catch (e) {
+  console.log("FALLBACK_CREATE_EXPRESS_APP", String(e).split("\\n")[0]);
+  app = express();
+  app.get("/health", (req, res) => res.status(200).send("ok"));
+}
+
+// Ensure tolerant /telegram route if not already present
+try {
+  const hasTelegram = !!(app._router && app._router.stack && app._router.stack.some(s => s.route && s.route.path === "/telegram"));
+  if (!hasTelegram) {
+    const telegramJson = express.json({ limit: "256kb" });
+    app.post("/telegram/:secret?", telegramJson, (req, res, next) => {
+      try {
+        const expected = process.env.TELEGRAM_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET || process.env.TELEGRAM_TOKEN || "";
+        const header = req.get("X-Telegram-Bot-Api-Secret-Token") || "";
+        const pathSecret = req.params && req.params.secret ? req.params.secret : "";
+        console.log("TOLERANT_WEBHOOK_SEEN", {
+          header: header ? (header.length > 8 ? header.slice(0,8) + "..." : header) : "",
+          pathSecret: pathSecret ? (pathSecret.length > 8 ? pathSecret.slice(0,8) + "..." : pathSecret) : "",
+          expected_present: !!expected
+        });
+        if (!expected || header === expected || pathSecret === expected) {
+          try {
+            const handler = require("./src/server/telegram-webhook");
+            if (typeof handler === "function") return handler(req, res, next);
+            if (handler && typeof handler.handle === "function") return handler.handle(req, res, next);
+          } catch (e) {
+            console.error("TOLERANT_HANDLER_MISSING", e && e.stack ? e.stack : String(e));
+            return res.status(200).json({ ok:true, note:"tolerant-accept-no-handler" });
+          }
+        }
+        return res.status(403).json({ ok:false, error:"invalid token" });
+      } catch (err) { next(err); }
+    });
+    console.log("MOUNTED_TOLERANT_TELEGRAM_ROUTE");
+  } else {
+    console.log("TELEGRAM_ROUTE_ALREADY_MOUNTED");
+  }
+} catch (e) {
+  console.error("MOUNT_TOLERANT_ROUTE_ERR", e && e.stack ? e.stack : String(e));
+}
+
+const port = process.env.PORT || process.env.PORT_WEB || 10000;
+if (!module.parent) {
+  app.listen(port, () => {
+    console.log("WRAPPER_SERVER_LISTENING", { port });
+  });
+}
+
+module.exports = app;
