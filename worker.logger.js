@@ -1,6 +1,5 @@
 ﻿
 // mount Telegram webhook router (auto-inserted)
-try { app.use('/telegram', require('./telegram-webhook')); } catch(e) { console.error('MOUNT_TELEGRAM_WEBHOOK_ERR', e && e.stack ? e.stack : String(e)); }
 // Auto-generated wrapper to export createServer correctly for bootstrap
 try {
   const mod = require('./app');
@@ -20,7 +19,7 @@ try {
   module.exports = {};
 }
 
-const telegramRouter = require('./telegram-webhook');
 app.use(telegramRouter);
+
 
 
