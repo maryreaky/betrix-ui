@@ -88,20 +88,3 @@ if (!module.parent) {
 }
 
 module.exports = app;
-
-/* TEMP FORCE-200 FALLBACK FOR /telegram - remove after recovery */
-try {
-  const express = require("express");
-  const telegramJson = express.json ? express.json({ limit: "256kb" }) : (req,res,next)=>next();
-  // find existing app export or create a minimal one
-  function findApp() {
-    try { const a = require("./src/app"); return a && a.listen ? a : (a && a.default && a.default.listen ? a.default : null); } catch(e) { return null; }
-  }
-  const appRoot = findApp() || (function(){ const e = require("express")(); e.get("/health",(r,s)=>s.send("ok")); return e; })();
-  // mount fallback at highest precedence
-  appRoot.post("/telegram/*", telegramJson, (req,res) => {
-    console.log("FORCE200_FALLBACK_HIT", { path: req.path });
-    return res.status(200).json({ ok:true, note:"force-200-temporary-fallback" });
-  });
-  console.log("FORCE200_FALLBACK_MOUNTED");
-} catch(e){ console.error("FORCE200_FALLBACK_ERR", e && e.stack ? e.stack : String(e)); }
