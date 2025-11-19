@@ -1,0 +1,1 @@
+﻿{"update_id":"test","message":{"message_id":1,"from":{"id":259313404},"chat":{"id":259313404},"date":'" + (Get-Date -UFormat %s) + @"',"text":"/start"}}

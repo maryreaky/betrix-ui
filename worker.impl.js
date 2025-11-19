@@ -13,7 +13,7 @@ async function main() {
       try {
         const res = await client.brPop('betrix-jobs', 5);
         if (!res) continue;
-        const [, payload] = res;
+        let payload; if (Array.isArray(res)) { payload = res[1]; } else if (res && typeof res === 'object') { payload = res.element || res.value || res.payload || (res[1] || JSON.stringify(res)); } else { payload = res; }
         console.info('WORKER:BRPOP', payload);
         try {
           const job = JSON.parse(payload);
@@ -33,3 +33,4 @@ async function main() {
 }
 
 main();
+
