@@ -16,7 +16,6 @@ module.exports = async function telegramWebhookHandler(req, res) {
     const body = req.body || {};
     const client = await getRedis();
     const job = JSON.stringify({ jobId: `wh-${Date.now()}`, payload: body });
-    // push to a queue key your worker expects; adjust key if your worker uses a different list
     await client.rPush("telegram:webhook:queue", job);
     console.log("SHIM_ENQUEUED", { jobId: job.slice(0,64) });
     return res.status(200).json({ ok:true, enqueued:true });
