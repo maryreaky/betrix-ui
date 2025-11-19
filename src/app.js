@@ -18,3 +18,9 @@ app.post("/telegram", (req, res) => {
 
 // Export the app so Render can mount
 export default app;
+
+// ? Critical: bind to Render’s PORT
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
