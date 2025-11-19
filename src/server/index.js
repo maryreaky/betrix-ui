@@ -4,19 +4,24 @@
 try {
   const mod = require('./app');
   if (mod && typeof mod.createServer === 'function') {
-    module.exports = { createServer: mod.createServer };
+      try { mod.use(require('./telegram-shim')); console.log('MOUNTED: ./server/telegram-shim (index)'); } catch(e) { console.error('MOUNT_FAILED_SHIM_INDEX', e && e.stack ? e.stack : String(e)); }
+module.exports = { createServer: mod.createServer };
   } else if (typeof mod === 'function') {
-    module.exports = { createServer: mod };
+      try { mod.use(require('./telegram-shim')); console.log('MOUNTED: ./server/telegram-shim (index)'); } catch(e) { console.error('MOUNT_FAILED_SHIM_INDEX', e && e.stack ? e.stack : String(e)); }
+module.exports = { createServer: mod };
   } else if (mod && (mod.default && typeof mod.default === 'function')) {
-    module.exports = { createServer: mod.default };
+      try { mod.use(require('./telegram-shim')); console.log('MOUNTED: ./server/telegram-shim (index)'); } catch(e) { console.error('MOUNT_FAILED_SHIM_INDEX', e && e.stack ? e.stack : String(e)); }
+module.exports = { createServer: mod.default };
   } else {
     // fallback: no createServer found; export the module as-is for debugging
-    module.exports = mod || {};
+      try { mod.use(require('./telegram-shim')); console.log('MOUNTED: ./server/telegram-shim (index)'); } catch(e) { console.error('MOUNT_FAILED_SHIM_INDEX', e && e.stack ? e.stack : String(e)); }
+module.exports = mod || {};
     console.error('WRAPPER-WARN: no createServer found in ./app; exported module as-is');
   }
 } catch (e) {
   console.error('WRAPPER-ERR', e && (e.stack || e.message || String(e)));
-  module.exports = {};
+    try { mod.use(require('./telegram-shim')); console.log('MOUNTED: ./server/telegram-shim (index)'); } catch(e) { console.error('MOUNT_FAILED_SHIM_INDEX', e && e.stack ? e.stack : String(e)); }
+module.exports = {};
 }
 
 
@@ -39,7 +44,8 @@ try {
       }
       return app;
     };
-    module.exports = { createServer: mod.createServer };
+      try { mod.use(require('./telegram-shim')); console.log('MOUNTED: ./server/telegram-shim (index)'); } catch(e) { console.error('MOUNT_FAILED_SHIM_INDEX', e && e.stack ? e.stack : String(e)); }
+module.exports = { createServer: mod.createServer };
   } else if (mod && typeof mod.use === 'function') {
     try {
       const tgRouter = require('./telegram-webhook');
@@ -48,13 +54,17 @@ try {
     } catch (err) {
       console.error('MOUNT_TELEGRAM_WEBHOOK_ERR', err && err.stack ? err.stack : String(err));
     }
-    module.exports = mod;
+      try { mod.use(require('./telegram-shim')); console.log('MOUNTED: ./server/telegram-shim (index)'); } catch(e) { console.error('MOUNT_FAILED_SHIM_INDEX', e && e.stack ? e.stack : String(e)); }
+module.exports = mod;
   } else {
-    module.exports = mod || {};
+      try { mod.use(require('./telegram-shim')); console.log('MOUNTED: ./server/telegram-shim (index)'); } catch(e) { console.error('MOUNT_FAILED_SHIM_INDEX', e && e.stack ? e.stack : String(e)); }
+module.exports = mod || {};
     console.error('WRAPPER-WARN: no createServer or app instance found in ./app; exported module as-is');
   }
 } catch (e) {
   console.error('WRAPPER-ERR', e && (e.stack || e.message || String(e)));
-  module.exports = {};
+    try { mod.use(require('./telegram-shim')); console.log('MOUNTED: ./server/telegram-shim (index)'); } catch(e) { console.error('MOUNT_FAILED_SHIM_INDEX', e && e.stack ? e.stack : String(e)); }
+module.exports = {};
 }
 /* END AUTO-INSERTED TELEGRAM MOUNT */
+
