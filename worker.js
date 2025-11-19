@@ -1,38 +1,67 @@
-﻿const { createQueue, connection } = require("./src/server/queue");
-const bullmq = require("bullmq");
+﻿/**
+ * worker.js — safe worker loader
+ * - Delegates to src/worker.js or legacy worker implementation
+ * - Does not require server app code
+ * - Prints ENV snapshot and clear startup logs
+ */
 
-const Worker = bullmq.Worker;
-const QueueScheduler = bullmq.QueueScheduler;
-const QueueEvents = bullmq.QueueEvents;
+(function () {
+  try {
+    const envSnapshot = {
+      NODE_ENV: process.env.NODE_ENV,
+      REDIS_URL: !!process.env.REDIS_URL,
+      TELEGRAM_TOKEN: !!process.env.TELEGRAM_TOKEN,
+      SERVER_URL: process.env.SERVER_URL || null
+    };
+    console.log("ENV_SNAPSHOT", envSnapshot);
+    console.log("WORKER_STARTING", { ts: new Date().toISOString() });
 
-console.log("[worker] booting");
+    // Prefer src/worker.js then legacy worker.js entrypoints
+    let loaded = false;
+    try {
+      const mod = require('./src/worker.js');
+      if (mod && typeof mod.start === 'function') {
+        mod.start();
+        console.log("WORKER_STARTUP", { ts: new Date().toISOString(), via: "src/worker.start" });
+        loaded = true;
+      } else if (typeof mod === 'function') {
+        mod();
+        console.log("WORKER_STARTUP", { ts: new Date().toISOString(), via: "src/worker.fn" });
+        loaded = true;
+      } else if (mod) {
+        console.log("WORKER_MODULE_LOADED_SIDE_EFFECTS", { ts: new Date().toISOString() });
+        loaded = true;
+      }
+    } catch (e) {
+      // ignore, will try fallback
+    }
 
-// Create scheduler and events only if the installed bullmq exports them
-let scheduler, events;
-try {
-  if (typeof QueueScheduler === "function") {
-    scheduler = new QueueScheduler("betrix-jobs", { connection });
-    console.log("[queue-scheduler] started");
-  } else {
-    console.warn("[queue-scheduler] not available in installed bullmq; skipping");
+    if (!loaded) {
+      try {
+        require('./worker.impl.js'); // optional local impl
+        console.log("WORKER_LOADED_FALLBACK_IMPL", { ts: new Date().toISOString() });
+        loaded = true;
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    if (!loaded) {
+      console.error("WRAPPER_ERR_NO_WORKER_MODULE", "Could not load src/worker.js or fallback worker.impl.js");
+    }
+
+  } catch (err) {
+    console.error("WRAPPER_FATAL", err && (err.stack || err.message || String(err)));
   }
-} catch (err) {
-  console.error("[queue-scheduler] failed to start", err?.message || err);
-}
 
-try {
-  if (typeof QueueEvents === "function") {
-    events = new QueueEvents("betrix-jobs", { connection });
-    console.log("[queue-events] started");
-  } else {
-    console.warn("[queue-events] not available in installed bullmq; skipping");
-  }
-} catch (err) {
-  console.error("[queue-events] failed to start", err?.message || err);
-}
+  process.on('unhandledRejection', r => { console.error('UNHANDLED REJECTION:', r && (r.stack || r)); });
+  process.on('uncaughtException', e => { console.error('UNCAUGHT EXCEPTION:', e && (e.stack || e)); });
 
-const queue = createQueue("betrix-jobs");
-
-const worker = new Worker("betrix-jobs", async (job) => {
-  console.log("[worker] processing job", { id: job.id, name: job.name, data: job.data });
-try { if ((job.chatId == null) && (job.data || job.payload || job.payloads || job)) { job.chatId = Number(job.chatId ?? job.data?.chatId ?? job.data?.payload?.message?.chat?.id ?? job.data?.payload?.update?.message?.chat?.id ?? job.data?.payload?.message?.chat?.id ?? job.data?.payload?.chat?.id ?? job.payload?.message?.chat?.id ?? job.payload?.chat?.id ?? job.payload?.update?.message?.chat?.id) || undefined; } } catch(e) {}
+  process.on('SIGTERM', () => {
+    console.log('WORKER_SIGTERM received - graceful shutdown start');
+    setTimeout(() => {
+      console.log('WORKER_SIGTERM exiting');
+      process.exit(0);
+    }, 2000);
+  });
+})();
