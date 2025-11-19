@@ -19,7 +19,6 @@ try {
   module.exports = {};
 }
 
-app.use(telegramRouter);
 
 
 
