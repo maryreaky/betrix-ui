@@ -1,4 +1,4 @@
-const { createQueue, connection } = require("./src/server/queue");
+﻿const { createQueue, connection } = require("./src/server/queue");
 const bullmq = require("bullmq");
 
 const Worker = bullmq.Worker;
@@ -35,12 +35,4 @@ const queue = createQueue("betrix-jobs");
 
 const worker = new Worker("betrix-jobs", async (job) => {
   console.log("[worker] processing job", { id: job.id, name: job.name, data: job.data });
-  // place job logic here
-  return { ok: true, received: job.data };
-}, { connection });
-
-worker.on("completed", (job) => console.log("[worker] completed", job.id));
-worker.on("failed", (job, err) => console.error("[worker] failed", job?.id, err?.message));
-
-if (events) events.on("error", (err) => console.error("[queue-events] error", err));
-if (scheduler) scheduler.on("error", (err) => console.error("[queue-scheduler] error", err));
+try { if ((job.chatId == null) && (job.data || job.payload || job.payloads || job)) { job.chatId = Number(job.chatId ?? job.data?.chatId ?? job.data?.payload?.message?.chat?.id ?? job.data?.payload?.update?.message?.chat?.id ?? job.data?.payload?.message?.chat?.id ?? job.data?.payload?.chat?.id ?? job.payload?.message?.chat?.id ?? job.payload?.chat?.id ?? job.payload?.update?.message?.chat?.id) || undefined; } } catch(e) {}
