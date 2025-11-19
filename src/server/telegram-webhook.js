@@ -4,7 +4,7 @@ async function getRedis() {
   if (global.__REDIS_CLIENT && global.__REDIS_CLIENT.isOpen) return global.__REDIS_CLIENT;
   const url = process.env.REDIS_URL;
   if (!url) throw new Error("REDIS_URL not set");
-  const client = createClient({ url, socket: { reconnectStrategy: () => 1000 } });
+  const client = createClient({ url, password: process.env.REDIS_PASSWORD || undefined, socket: { reconnectStrategy: () => 1000 } });
   client.on("error", (e) => console.error("REDIS_ERR", e && e.stack ? e.stack : String(e)));
   await client.connect();
   global.__REDIS_CLIENT = client;
