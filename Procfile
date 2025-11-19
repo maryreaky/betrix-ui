@@ -1,2 +1,2 @@
-﻿web: node telegram.web.js
-worker: node src/worker.js
+web: node src/app.js
+worker: node worker.js
