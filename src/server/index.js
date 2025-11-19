@@ -68,3 +68,25 @@ module.exports = {};
 }
 /* END AUTO-INSERTED TELEGRAM MOUNT */
 
+/* DEBUG HELPERS AND EXPLICIT TELEGRAM MOUNTS ADDED BY DEBUG PATCH */
+try {
+  // debug probe endpoints to confirm requests reach Express
+  if (typeof app !== "undefined" && app && typeof app.get === "function") {
+    app.get('/__health/debug', (req, res) => {
+      console.log('DEBUG_HEALTH_GET', { ts: new Date().toISOString(), method: req.method, url: req.url, headers: Object.keys(req.headers).slice(0,20) });
+      res.status(200).json({ ok: true, ts: new Date().toISOString() });
+    });
+    app.post('/__health/debug', express.json({ limit: '50kb' }), (req, res) => {
+      console.log('DEBUG_HEALTH_POST', { ts: new Date().toISOString(), bodyPreview: JSON.stringify(req.body).slice(0,200), headers: Object.keys(req.headers).slice(0,20) });
+      res.status(200).json({ ok: true, received: true });
+    });
+  }
+} catch(e) { console.error('DEBUG_PATCH_ERR', e && (e.stack||e.message)); }
+
+// Ensure explicit mounting of telegram shims/webhook at the known paths
+try {
+  // permissive shim at /webhook/telegram
+  try { app.use('/webhook/telegram', require('./telegram-shim')); console.log('MOUNTED: /webhook/telegram -> ./server/telegram-shim'); } catch(e) { console.error('MOUNT_FAILED: /webhook/telegram', e && (e.stack||e.message)); }
+  // canonical telegram webhook mounts
+  try { app.use('/telegram', require('./telegram-webhook')); console.log('MOUNTED: /telegram -> ./server/telegram-webhook'); } catch(e) { console.error('MOUNT_FAILED: /telegram', e && (e.stack||e.message)); }
+} catch(e) { console.error('MOUNT_PATCH_ERR', e && (e.stack||e.message)); }
