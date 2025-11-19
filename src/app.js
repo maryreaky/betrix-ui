@@ -1,28 +1,20 @@
-﻿/* AUTO-GENERATED src/app.js — mounts ./server/telegram router */
-const express = require('express');
+import express from "express";
+import bodyParser from "body-parser";
+import Redis from "ioredis";
+
 const app = express();
+const redisClient = new Redis(process.env.REDIS_URL);
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 
-// mount existing telegram router (safe require)
+app.post("/telegram", (req, res) => {
+  const update = req.body;
+  redisClient.lpush("telegram:webhook:queue", JSON.stringify({
+    jobId: `wh-${Date.now()}`,
+    payload: update
+  }));
+  res.sendStatus(200); // critical: always respond 200 OK
+});
 
-/* tolerant webhook: accept either path-secret or header-secret */
-try {
-  // middleware accepts either the TELEGRAM_WEBHOOK_SECRET as a path segment or X-Telegram-Bot-Api-Secret-Token header
-  app.use('/telegram', express.json({ limit: '128kb' }), (req, res, next) => {
-    try {
-      const expected = process.env.TELEGRAM_WEBHOOK_SECRET || '';
-      const header = req.get('X-Telegram-Bot-Api-Secret-Token');
-      // allow if no expected secret configured, or header matches, or path ends with the secret
-      if (!expected || header === expected || req.path.endsWith('/' + expected)) return next();
-    } catch(e) { /* ignore and fallthrough */ }
-    return res.status(403).json({ ok:false, error:'invalid token' });
-  });
-  // mount the actual telegram handler after the tolerant middleware
-  try { app.use('/telegram', require('./server/telegram-webhook')); console.log('MOUNTED: /telegram -> ./server/telegram-webhook'); } catch(e) { console.error('MOUNT_FAILED_TELEGRAM_HANDLER', e && e.stack ? e.stack : String(e)); }
-} catch(e) {
-  console.error('TOLERANT_MIDDLEWARE_INSERT_FAIL', e && e.stack ? e.stack : String(e));
-}
-  try { app.use(require('./server/telegram-shim')); console.log('MOUNTED: ./server/telegram-shim'); } catch(e) { console.error('MOUNT_FAILED_SHIM', e && e.stack ? e.stack : String(e)); }
-
+// Export the app so Render can mount
+export default app;
