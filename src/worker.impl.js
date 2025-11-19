@@ -1,9 +1,9 @@
-﻿/* Minimal safe worker fallback - BRPOP loop and logging */
+﻿/* Minimal safe worker.impl.js - BRPOP loop and logging */
 const Redis = require('redis');
 
 async function main() {
   try {
-    const url = process.env.REDIS_URL || process.env.REDIS || undefined;
+    const url = process.env.REDIS_URL || undefined;
     const client = Redis.createClient({ url });
     client.on('error', (e) => console.error('redis-err', e && (e.stack||e.message||String(e))));
     await client.connect();
@@ -15,7 +15,6 @@ async function main() {
         if (!res) continue;
         const [, payload] = res;
         console.info('WORKER:BRPOP', payload);
-        // Minimal demonstration: parse and log chatId if present
         try {
           const job = JSON.parse(payload);
           console.info('WORKER:JOB_PARSED', { jobId: job.jobId, type: job.type, chatId: job.payload?.message?.chat?.id || job.chatId || null });
@@ -24,7 +23,7 @@ async function main() {
         }
       } catch (e) {
         console.error('WORKER_LOOP_ERR', e && (e.stack||e.message||String(e)));
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 2000));
       }
     }
   } catch (e) {
