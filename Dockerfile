@@ -1,9 +1,5 @@
-FROM node:22-alpine
+FROM node:18-alpine
 WORKDIR /app
 COPY . .
-ENV NODE_ENV=production
-RUN npm install --omit=dev
-EXPOSE 10000
-CMD ["node","server.orig.js"]
-HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-  CMD node healthcheck.js || exit 1
+RUN npm install --production
+# Let Render use Docker Command (node src/worker.js)
