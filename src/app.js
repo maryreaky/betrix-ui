@@ -9,9 +9,10 @@ app.use(bodyParser.json());
 
 // Health check route for Render
 app.get("/", (req, res) => {
-  res.send("OK");
+  res.status(200).send("OK");
 });
 
+// Telegram webhook route
 app.post("/telegram", (req, res) => {
   const update = req.body;
   redisClient.lpush("telegram:webhook:queue", JSON.stringify({
