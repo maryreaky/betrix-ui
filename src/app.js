@@ -7,7 +7,7 @@ const redisClient = new Redis(process.env.REDIS_URL);
 
 app.use(bodyParser.json());
 
-// Health check route
+// Health check route for Render
 app.get("/", (req, res) => {
   res.status(200).send("OK");
 });
@@ -19,12 +19,10 @@ app.post("/telegram", (req, res) => {
     jobId: `wh-${Date.now()}`,
     payload: update
   }));
-  res.sendStatus(200);
+  res.sendStatus(200); // must always return 200 OK
 });
 
-export default app;
-
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
