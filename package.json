@@ -1,34 +1,13 @@
 {
+  "name": "betrix-ui",
+  "version": "1.0.0",
   "type": "module",
-    "name":  "betrix-core",
-    "version":  "0.1.0",
-    "private":  true,
-    "engines":  {`n  "type": "module",
-                    "node":  "\u003e=22.0.0"
-                },
-    "scripts":  {`n  "type": "module",
-                    "build":  "node ./scripts/build-static.js",
-                    "start:worker":  "node worker.js",
-                    "start":  "node ./src/boot.js",
-                    "start:enforce":  "node -r ./src/server/startup-enforce-webhooks.js src/index.js",
-                    "start:web":  "node telegram.web.js",
-                    "start:all":  "pm2-runtime ecosystem.config.js",
-                    "start:render-web":  "node telegram.web.js",
-                    "start:render-worker":  "node ./worker.logger.js"
-                },
-    "dependencies":  {`n  "type": "module",
-                         "axios":  "^1.13.2",
-                         "bullmq":  "^5.63.2",
-                         "express":  "^4.18.2",
-                         "ioredis":  "^5.8.2",
-                         "node-fetch":  "^2.7.0",
-                         "pino":  "^8.14.0",
-                         "pm2":  "^6.0.13",
-                         "redis":  "^4.7.1",
-                         "undici":  "^6.12.0",
-                         "uuid":  "^9.0.0"
-                     },
-    "overrides":  {`n  "type": "module",
-
-                  }
+  "scripts": {
+    "start": "node src/app.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "body-parser": "^1.20.2",
+    "ioredis": "^5.3.2"
+  }
 }
