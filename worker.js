@@ -203,7 +203,7 @@ async function handleCommand(chatId, text) {
       case '/scores': reply = await getScores(args[0]); break;
       case '/news': reply = await getMBBNews(); break;
       case '/chat': reply = await runChatCompletion(argstr); break;
-      case '/transfers': reply = await getTeamTransfers(args[0]); break;
+      case '/transfers': reply  = await getTeamTransfers(args[0]); break;
       case '/predict': reply = await getFootballPrediction(argstr); break;
       case '/markets': reply = await getMarkets(args[0]); break;
       default: reply = 'Unknown command. Type /help for options.';
