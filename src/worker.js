@@ -35,7 +35,7 @@ console.log("Worker connected to Redis, waiting for jobs...");
         }
 
         // Send reply back to Telegram
-        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
+        const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -44,7 +44,8 @@ console.log("Worker connected to Redis, waiting for jobs...");
           })
         });
 
-        console.log(`Reply sent to chat ${chatId}: ${reply}`);
+        const result = await res.json();
+        console.log("Telegram API response:", result);
       }
     } catch (err) {
       console.error("Worker loop error", err);
