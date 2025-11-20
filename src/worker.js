@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import fetch from "node-fetch";
 
 const redis = new Redis(process.env.REDIS_URL);
 
@@ -9,17 +10,41 @@ console.log("Worker connected to Redis, waiting for jobs...");
 (async () => {
   while (true) {
     try {
-      // Blocking pop from the correct queue
       const job = await redis.brpop("telegram-jobs", 0);
       if (job) {
         const [queue, raw] = job;
-        console.log("Job popped:", raw);
-
-        // Parse and process payload
         const parsed = JSON.parse(raw);
         const payload = parsed.payload;
 
-        // TODO: handle payload (e.g., sendMessage back to Telegram)
+        console.log("Job popped:", payload);
+
+        const chatId = payload.message.chat.id;
+        const text = payload.message.text;
+
+        // Command router
+        let reply;
+        switch (text.toLowerCase()) {
+          case "/start":
+            reply = "Welcome to BETRIX — your AI sports assistant!";
+            break;
+          case "/odds":
+            reply = "Odds feature coming soon…";
+            break;
+          default:
+            reply = `Unknown command: ${text}`;
+        }
+
+        // Send reply back to Telegram
+        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: reply
+          })
+        });
+
+        console.log(`Reply sent to chat ${chatId}: ${reply}`);
       }
     } catch (err) {
       console.error("Worker loop error", err);
