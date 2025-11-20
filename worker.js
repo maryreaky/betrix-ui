@@ -3,7 +3,6 @@ import Redis from 'ioredis';
 
 const redis = new Redis(process.env.REDIS_URL);
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 
 async function sendMessage(chatId, text) {
   try {
