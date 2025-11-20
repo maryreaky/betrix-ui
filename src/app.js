@@ -19,7 +19,7 @@ app.post("/telegram", (req, res) => {
     jobId: `wh-${Date.now()}`,
     payload: update
   }));
-  res.sendStatus(200); // critical: always respond 200 OK
+  res.sendStatus(200); // must always return 200 OK
 });
 
 // Export the app so Render can mount
