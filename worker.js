@@ -17,19 +17,6 @@ async function sendMessage(chatId, text) {
   }
 }
 
-// Example helper
-async function getSofaSportOdds(matchId) {
-  if (!matchId) return 'Usage: /odds <matchId>';
-  const res = await fetch(https://sofasport.p.rapidapi.com/odds/, {
-    headers: {
-      'X-RapidAPI-Key': RAPIDAPI_KEY,
-      'X-RapidAPI-Host': 'sofasport.p.rapidapi.com'
-    }
-  });
-  const data = await res.json();
-  return JSON.stringify(data, null, 2);
-}
-
 async function handleCommand(chatId, text) {
   const [cmd, ...args] = (text || '').trim().split(' ');
   let reply;
@@ -39,9 +26,6 @@ async function handleCommand(chatId, text) {
       break;
     case '/help':
       reply = 'Commands: /odds <matchId>, /seasons <tournamentId>, /ai <prompt>, etc.';
-      break;
-    case '/odds':
-      reply = await getSofaSportOdds(args[0]);
       break;
     default:
       reply = 'Unknown command. Type /help for options.';
