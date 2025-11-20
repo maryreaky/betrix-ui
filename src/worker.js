@@ -1,21 +1,28 @@
-const { createClient } = require('redis');
+import Redis from "ioredis";
+
+const redis = new Redis(process.env.REDIS_URL);
+
+redis.on("error", err => console.error("Redis error", err));
+
+console.log("Worker connected to Redis, waiting for jobs...");
 
 (async () => {
-  const client = createClient({ url: process.env.REDIS_URL });
-  client.on('error', err => console.error('Redis error', err));
-  await client.connect();
-
-  console.log('Worker connected to Redis, waiting for jobs...');
-
   while (true) {
     try {
-      const job = await client.brPop('telegram:webhook:queue', 0);
+      // Blocking pop from the correct queue
+      const job = await redis.brpop("telegram-jobs", 0);
       if (job) {
-        console.log('Job popped:', job);
-        // TODO: process job.payload here
+        const [queue, raw] = job;
+        console.log("Job popped:", raw);
+
+        // Parse and process payload
+        const parsed = JSON.parse(raw);
+        const payload = parsed.payload;
+
+        // TODO: handle payload (e.g., sendMessage back to Telegram)
       }
     } catch (err) {
-      console.error('Worker loop error', err);
+      console.error("Worker loop error", err);
     }
   }
 })();
