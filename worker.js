@@ -28,8 +28,28 @@ async function processJobs() {
         console.log("Job popped:", data);
 
         const msg = data.payload.message;
-        if (msg && msg.text === "/start") {
-          await sendTelegramMessage(msg.chat.id, "Welcome to BETRIX! ?? Your bot is live.");
+        if (msg && msg.text) {
+          const chatId = msg.chat.id;
+          const text = msg.text.trim();
+
+          switch (text) {
+            case "/start":
+              await sendTelegramMessage(chatId, "Welcome to BETRIX! ?? Your bot is live.");
+              break;
+            case "/help":
+              await sendTelegramMessage(chatId,
+                "Available commands:\n/start – Welcome message\n/help – Show this menu\n/odds – Sports odds (coming soon)\n/meme – Fun meme (coming soon)"
+              );
+              break;
+            case "/odds":
+              await sendTelegramMessage(chatId, "Sports odds feature is under construction ??? Stay tuned!");
+              break;
+            case "/meme":
+              await sendTelegramMessage(chatId, "Meme feature is under construction ?? Stay tuned!");
+              break;
+            default:
+              await sendTelegramMessage(chatId, "Unknown command. Type /help to see available options.");
+          }
         }
       }
     } catch (err) {
