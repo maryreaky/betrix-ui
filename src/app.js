@@ -22,7 +22,7 @@ app.post("/telegram", (req, res) => {
     jobId: `wh-${Date.now()}`,
     payload: update
   }));
-  console.log("Telegram update received:", update); // log incoming updates
+  console.log("Telegram update received:", update);
   res.sendStatus(200); // respond immediately with 200 OK
 });
 
