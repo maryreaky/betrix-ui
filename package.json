@@ -1,11 +1,11 @@
-﻿{
+{`n  "type": "module",
     "name":  "betrix-core",
     "version":  "0.1.0",
     "private":  true,
-    "engines":  {
+    "engines":  {`n  "type": "module",
                     "node":  "\u003e=22.0.0"
                 },
-    "scripts":  {
+    "scripts":  {`n  "type": "module",
                     "build":  "node ./scripts/build-static.js",
                     "start:worker":  "node worker.js",
                     "start":  "node ./src/boot.js",
@@ -15,7 +15,7 @@
                     "start:render-web":  "node telegram.web.js",
                     "start:render-worker":  "node ./worker.logger.js"
                 },
-    "dependencies":  {
+    "dependencies":  {`n  "type": "module",
                          "axios":  "^1.13.2",
                          "bullmq":  "^5.63.2",
                          "express":  "^4.18.2",
@@ -27,7 +27,7 @@
                          "undici":  "^6.12.0",
                          "uuid":  "^9.0.0"
                      },
-    "overrides":  {
+    "overrides":  {`n  "type": "module",
 
                   }
 }
