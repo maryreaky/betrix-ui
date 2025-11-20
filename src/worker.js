@@ -2,30 +2,48 @@
 import Redis from "ioredis";
 import fetch from "node-fetch";
 
-// ---------- Environment validation ----------
-const {
-  REDIS_URL,
-  TELEGRAM_TOKEN,
-  RAPIDAPI_KEY,
-  SOFASCORE_API_BASE,     // e.g. https://api.sofascore.com
-  PERFORM_API_BASE,       // e.g. https://api.perform.com
-  SPORTSBOOK_API_BASE,    // e.g. https://api.yourbook.com
-  OPENAI_API_KEY          // optional, for free-form chat fallback
-} = process.env;
+// -------- Env --------
+const env = {
+  REDIS_URL: process.env.REDIS_URL,
+  TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN,
+  RAPIDAPI_KEY: process.env.RAPIDAPI_KEY,
 
-const requiredEnvs = { REDIS_URL, TELEGRAM_TOKEN };
-for (const [k, v] of Object.entries(requiredEnvs)) {
-  if (!v) {
-    console.error(`[FATAL] Missing required env ${k}`);
-    process.exit(1);
-  }
-}
+  SOFASCORE_API_BASE: process.env.SOFASCORE_API_BASE,
+  SOFASCORE_LIVE_PATH: process.env.SOFASCORE_LIVE_PATH,
+  SOFASCORE_FIXTURES_PATH: process.env.SOFASCORE_FIXTURES_PATH,
+  SOFASCORE_STANDINGS_PATH: process.env.SOFASCORE_STANDINGS_PATH,
+  SOFASCORE_ODDS_PATH: process.env.SOFASCORE_ODDS_PATH,
 
-// ---------- Utilities ----------
-const redis = new Redis(REDIS_URL);
+  PERFORM_API_BASE: process.env.PERFORM_API_BASE,
+  PERFORM_MATCH_ODDS_PATH: process.env.PERFORM_MATCH_ODDS_PATH,
+
+  SPORTSBOOK_API_BASE: process.env.SPORTSBOOK_API_BASE,
+  SPORTSBOOK_MARKETS_PATH: process.env.SPORTSBOOK_MARKETS_PATH,
+  SPORTSBOOK_PRICE_PATH: process.env.SPORTSBOOK_PRICE_PATH,
+
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY
+};
+
+["REDIS_URL", "TELEGRAM_TOKEN"].forEach(k => {
+  if (!env[k]) { console.error(`[FATAL] Missing env ${k}`); process.exit(1); }
+});
+
+// -------- Core utils --------
+const redis = new Redis(env.REDIS_URL);
 redis.on("error", err => console.error("[Redis] error:", err));
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+function buildUrl(base, path, params) {
+  if (!base || !path) return null;
+  let p = path;
+  if (params && typeof params === "object") {
+    for (const [k,v] of Object.entries(params)) {
+      p = p.replace(`{${k}}`, encodeURIComponent(v ?? ""));
+    }
+  }
+  if (p.includes("?")) return `${base}${p}`;
+  return `${base}${p}`;
+}
 
 async function safeFetch(url, options = {}, label = "request", retries = 2) {
   const controller = new AbortController();
@@ -50,13 +68,8 @@ async function safeFetch(url, options = {}, label = "request", retries = 2) {
 }
 
 async function sendTelegram(chatId, text, opts = {}) {
-  const body = {
-    chat_id: chatId,
-    text,
-    parse_mode: "Markdown",
-    ...opts
-  };
-  const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
+  const body = { chat_id: chatId, text, parse_mode: "Markdown", ...opts };
+  const url = `https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage`;
   const res = await safeFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -66,68 +79,83 @@ async function sendTelegram(chatId, text, opts = {}) {
   return res;
 }
 
-// ---------- Adapters (configure endpoints in env) ----------
+// -------- Adapters --------
 const SofaScore = {
   async live() {
-    if (!SOFASCORE_API_BASE || !RAPIDAPI_KEY) return { ok: false, reason: "SofaScore not configured" };
-    const url = `${SOFASCORE_API_BASE}/live`;
+    if (!env.SOFASCORE_API_BASE || !env.SOFASCORE_LIVE_PATH || !env.RAPIDAPI_KEY)
+      return { ok: false, reason: "SofaScore.live not configured" };
+    const url = buildUrl(env.SOFASCORE_API_BASE, env.SOFASCORE_LIVE_PATH);
     return safeFetch(url, {
-      headers: { "X-RapidAPI-Key": RAPIDAPI_KEY }
+      headers: { "X-RapidAPI-Key": env.RAPIDAPI_KEY }
     }, "SofaScore.live");
   },
   async fixtures({ league, date }) {
-    if (!SOFASCORE_API_BASE || !RAPIDAPI_KEY) return { ok: false, reason: "SofaScore not configured" };
-    const qs = new URLSearchParams({ league: league ?? "", date: date ?? "" }).toString();
-    const url = `${SOFASCORE_API_BASE}/fixtures?${qs}`;
+    if (!env.SOFASCORE_API_BASE || !env.SOFASCORE_FIXTURES_PATH || !env.RAPIDAPI_KEY)
+      return { ok: false, reason: "SofaScore.fixtures not configured" };
+    let path = env.SOFASCORE_FIXTURES_PATH;
+    const qs = new URLSearchParams();
+    if (league) qs.append("league", league);
+    if (date) qs.append("date", date);
+    if (qs.toString()) path = `${path}?${qs.toString()}`;
+    const url = buildUrl(env.SOFASCORE_API_BASE, path);
     return safeFetch(url, {
-      headers: { "X-RapidAPI-Key": RAPIDAPI_KEY }
+      headers: { "X-RapidAPI-Key": env.RAPIDAPI_KEY }
     }, "SofaScore.fixtures");
   },
-  async standings({ league }) {
-    if (!SOFASCORE_API_BASE || !RAPIDAPI_KEY) return { ok: false, reason: "SofaScore not configured" };
-    const url = `${SOFASCORE_API_BASE}/standings?league=${encodeURIComponent(league ?? "")}`;
+  async standings({ leagueId }) {
+    if (!env.SOFASCORE_API_BASE || !env.SOFASCORE_STANDINGS_PATH || !env.RAPIDAPI_KEY)
+      return { ok: false, reason: "SofaScore.standings not configured" };
+    const url = buildUrl(env.SOFASCORE_API_BASE, env.SOFASCORE_STANDINGS_PATH, { leagueId });
     return safeFetch(url, {
-      headers: { "X-RapidAPI-Key": RAPIDAPI_KEY }
+      headers: { "X-RapidAPI-Key": env.RAPIDAPI_KEY }
     }, "SofaScore.standings");
   },
   async odds({ matchId }) {
-    if (!SOFASCORE_API_BASE || !RAPIDAPI_KEY) return { ok: false, reason: "SofaScore not configured" };
-    const url = `${SOFASCORE_API_BASE}/odds?matchId=${encodeURIComponent(matchId ?? "")}`;
+    if (!env.SOFASCORE_API_BASE || !env.SOFASCORE_ODDS_PATH || !env.RAPIDAPI_KEY)
+      return { ok: false, reason: "SofaScore.odds not configured" };
+    const url = buildUrl(env.SOFASCORE_API_BASE, env.SOFASCORE_ODDS_PATH, { matchId });
     return safeFetch(url, {
-      headers: { "X-RapidAPI-Key": RAPIDAPI_KEY }
+      headers: { "X-RapidAPI-Key": env.RAPIDAPI_KEY }
     }, "SofaScore.odds");
   }
 };
 
 const Perform = {
   async matchOdds({ matchId }) {
-    if (!PERFORM_API_BASE) return { ok: false, reason: "Perform not configured" };
-    const url = `${PERFORM_API_BASE}/odds/match/${encodeURIComponent(matchId ?? "")}`;
+    if (!env.PERFORM_API_BASE || !env.PERFORM_MATCH_ODDS_PATH)
+      return { ok: false, reason: "Perform.matchOdds not configured" };
+    const url = buildUrl(env.PERFORM_API_BASE, env.PERFORM_MATCH_ODDS_PATH, { matchId });
     return safeFetch(url, {}, "Perform.matchOdds");
-  },
-  async schedule({ league, date }) {
-    if (!PERFORM_API_BASE) return { ok: false, reason: "Perform not configured" };
-    const qs = new URLSearchParams({ league: league ?? "", date: date ?? "" }).toString();
-    const url = `${PERFORM_API_BASE}/schedule?${qs}`;
-    return safeFetch(url, {}, "Perform.schedule");
   }
 };
 
 const Sportsbook = {
   async markets({ matchId }) {
-    if (!SPORTSBOOK_API_BASE) return { ok: false, reason: "Sportsbook not configured" };
-    const url = `${SPORTSBOOK_API_BASE}/markets/${encodeURIComponent(matchId ?? "")}`;
+    if (!env.SPORTSBOOK_API_BASE || !env.SPORTSBOOK_MARKETS_PATH)
+      return { ok: false, reason: "Sportsbook.markets not configured" };
+    const url = buildUrl(env.SPORTSBOOK_API_BASE, env.SPORTSBOOK_MARKETS_PATH, { matchId });
     return safeFetch(url, {}, "Sportsbook.markets");
   },
   async price({ matchId, market }) {
-    if (!SPORTSBOOK_API_BASE) return { ok: false, reason: "Sportsbook not configured" };
-    const qs = new URLSearchParams({ market: market ?? "" }).toString();
-    const url = `${SPORTSBOOK_API_BASE}/price/${encodeURIComponent(matchId ?? "")}?${qs}`;
+    if (!env.SPORTSBOOK_API_BASE || !env.SPORTSBOOK_PRICE_PATH)
+      return { ok: false, reason: "Sportsbook.price not configured" };
+    let path = env.SPORTSBOOK_PRICE_PATH.replace("{matchId}", encodeURIComponent(matchId ?? ""));
+    if (market) {
+      const hasQs = path.includes("?");
+      const qsJoin = hasQs ? "&" : "?";
+      path = `${path}${qsJoin}market=${encodeURIComponent(market)}`;
+    }
+    const url = buildUrl(env.SPORTSBOOK_API_BASE, path);
     return safeFetch(url, {}, "Sportsbook.price");
   }
 };
 
-// ---------- Command parsing ----------
+// -------- Format helpers --------
+function fmtList(title, rows) {
+  if (!rows?.length) return `${title}: none`;
+  return `*${title}:*\n` + rows.map(r => `- ${r}`).join("\n");
+}
+
 function parseArgs(text) {
   const parts = text.trim().split(/\s+/);
   const cmd = parts[0].toLowerCase();
@@ -135,23 +163,12 @@ function parseArgs(text) {
   return { cmd, args };
 }
 
-function fmtList(title, rows) {
-  if (!rows?.length) return `${title}: none`;
-  return `*${title}:*\n` + rows.map((r, i) => `- ${r}`).join("\n");
-}
-
-// ---------- Command handlers ----------
+// -------- Handlers --------
 const handlers = {
   async start({ chatId }) {
     return sendTelegram(chatId,
       "Welcome to BETRIX — your AI sports assistant.\n\n" +
-      "Try:\n" +
-      "- /help\n" +
-      "- /live\n" +
-      "- /fixtures EPL\n" +
-      "- /standings EPL\n" +
-      "- /odds 12345\n" +
-      "- /betslip 12345 1X2");
+      "Try:\n- /help\n- /live\n- /fixtures EPL\n- /standings 17   (example leagueId)\n- /odds 12345     (example matchId)\n- /betslip 12345 1X2");
   },
 
   async help({ chatId }) {
@@ -159,11 +176,11 @@ const handlers = {
       "*Commands:*\n" +
       "- /start — welcome\n" +
       "- /help — list commands\n" +
-      "- /live — live matches (SofaScore)\n" +
+      "- /live — live matches\n" +
       "- /fixtures <league|date> — upcoming fixtures\n" +
-      "- /standings <league> — table\n" +
+      "- /standings <leagueId> — table\n" +
       "- /odds <matchId> — market odds\n" +
-      "- /betslip <matchId> <market> — price from Sportsbook");
+      "- /betslip <matchId> <market> — sportsbook price");
   },
 
   async live({ chatId }) {
@@ -171,7 +188,7 @@ const handlers = {
     if (data?.ok === false) return sendTelegram(chatId, `Live unavailable: ${data.reason ?? data.error}`);
     const items = (data?.events ?? data?.matches ?? [])
       .slice(0, 10)
-      .map(m => `${m?.home?.name ?? m?.homeTeam} vs ${m?.away?.name ?? m?.awayTeam} — ${m?.status ?? "LIVE"}`);
+      .map(m => `${m?.homeTeam?.name ?? m?.home?.name ?? m?.home} vs ${m?.awayTeam?.name ?? m?.away?.name ?? m?.away} — ${m?.status?.description ?? m?.status ?? "LIVE"}`);
     return sendTelegram(chatId, fmtList("Live now", items));
   },
 
@@ -182,31 +199,34 @@ const handlers = {
     if (data?.ok === false) return sendTelegram(chatId, `Fixtures unavailable: ${data.reason ?? data.error}`);
     const items = (data?.fixtures ?? data?.events ?? [])
       .slice(0, 10)
-      .map(f => `${f?.date ?? f?.kickoff} — ${f?.home?.name ?? f?.home} vs ${f?.away?.name ?? f?.away}`);
+      .map(f => `${f?.date ?? f?.startTimestamp ?? f?.kickoff} — ${f?.homeTeam?.name ?? f?.home?.name ?? f?.home} vs ${f?.awayTeam?.name ?? f?.away?.name ?? f?.away}`);
     return sendTelegram(chatId, fmtList("Upcoming fixtures", items));
   },
 
   async standings({ chatId, args }) {
-    const league = args[0];
-    if (!league) return sendTelegram(chatId, "Usage: /standings <league>");
-    const data = await SofaScore.standings({ league }).catch(err => ({ ok: false, error: err.message }));
+    const leagueId = args[0];
+    if (!leagueId) return sendTelegram(chatId, "Usage: /standings <leagueId>");
+    const data = await SofaScore.standings({ leagueId }).catch(err => ({ ok: false, error: err.message }));
     if (data?.ok === false) return sendTelegram(chatId, `Standings unavailable: ${data.reason ?? data.error}`);
-    const table = (data?.standings ?? data?.table ?? []).slice(0, 10).map(
-      r => `${r?.rank ?? r?.position}. ${r?.team?.name ?? r?.team} (${r?.points ?? "-"})`
-    );
-    return sendTelegram(chatId, fmtList(`Standings ${league}`, table));
+    const table = (data?.standings?.rows ?? data?.standings ?? data?.table ?? [])
+      .slice(0, 10)
+      .map(r => `${r?.position ?? r?.rank}. ${r?.team?.name ?? r?.team} (${r?.points ?? "-"})`);
+    return sendTelegram(chatId, fmtList(`Standings ${leagueId}`, table));
   },
 
   async odds({ chatId, args }) {
     const matchId = args[0];
     if (!matchId) return sendTelegram(chatId, "Usage: /odds <matchId>");
-    // Try Perform first, then SofaScore
     const perform = await Perform.matchOdds({ matchId }).catch(() => null);
     const sofa = !perform ? await SofaScore.odds({ matchId }).catch(() => null) : null;
 
-    const markets = perform?.markets ?? sofa?.markets ?? [];
+    const markets = perform?.markets ?? sofa?.markets ?? sofa?.bookmakers?.[0]?.markets ?? [];
     if (!markets.length) return sendTelegram(chatId, `No odds found for match ${matchId}`);
-    const rows = markets.slice(0, 10).map(m => `${m?.name}: ${m?.prices?.map(p => `${p.outcome} ${p.odds}`).join(" | ")}`);
+    const rows = markets.slice(0, 10).map(m => {
+      const prices = m?.prices ?? m?.outcomes ?? [];
+      const line = prices.map(p => `${p?.outcome ?? p?.name}: ${p?.odds ?? p?.price}`).join(" | ");
+      return `${m?.name ?? m?.marketName}: ${line}`;
+    });
     return sendTelegram(chatId, fmtList(`Odds for ${matchId}`, rows));
   },
 
@@ -215,30 +235,29 @@ const handlers = {
     if (!matchId || !market) return sendTelegram(chatId, "Usage: /betslip <matchId> <market>");
     const price = await Sportsbook.price({ matchId, market }).catch(err => ({ ok: false, error: err.message }));
     if (price?.ok === false) return sendTelegram(chatId, `Sportsbook unavailable: ${price.reason ?? price.error}`);
-    const rows = (price?.prices ?? price?.offers ?? []).map(p => `${p.outcome}: ${p.odds}`);
+    const rows = (price?.prices ?? price?.offers ?? price?.data ?? []).slice(0, 10).map(p => `${p?.outcome ?? p?.name}: ${p?.odds ?? p?.price}`);
     if (!rows.length) return sendTelegram(chatId, `No prices for ${market} on match ${matchId}`);
     return sendTelegram(chatId, fmtList(`BetSlip ${market} — ${matchId}`, rows));
   }
 };
 
-// ---------- Fallback: generative or graceful ----------
+// -------- Fallback (optional OpenAI) --------
 async function fallbackReply(chatId, text) {
-  if (OPENAI_API_KEY) {
+  if (env.OPENAI_API_KEY) {
     try {
-      const body = {
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: "You are BETRIX, an AI sports assistant. Be concise, helpful, and accurate." },
-          { role: "user", content: text }
-        ]
-      };
       const res = await safeFetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "You are BETRIX, an AI sports assistant. Be concise, helpful, and accurate." },
+            { role: "user", content: text }
+          ]
+        })
       }, "openai.chat");
       const reply = res?.choices?.[0]?.message?.content?.trim();
       if (reply) return sendTelegram(chatId, reply);
@@ -249,7 +268,7 @@ async function fallbackReply(chatId, text) {
   return sendTelegram(chatId, `Unknown command: ${text}\nTry /help`);
 }
 
-// ---------- Main worker loop ----------
+// -------- Main loop --------
 console.log("Worker connected to Redis, waiting for jobs...");
 
 (async () => {
@@ -262,7 +281,7 @@ console.log("Worker connected to Redis, waiting for jobs...");
       let payload;
       try {
         const parsed = JSON.parse(raw);
-        payload = parsed.payload ?? parsed; // handle both shapes
+        payload = parsed.payload ?? parsed; // support both shapes
       } catch (err) {
         console.error("[Parse] invalid job payload:", err.message, raw?.slice?.(0, 400) ?? "");
         continue;
@@ -280,16 +299,15 @@ console.log("Worker connected to Redis, waiting for jobs...");
 
       const { cmd, args } = parseArgs(text);
 
-      // Route commands
       switch (cmd) {
-        case "/start":       await handlers.start({ chatId }); break;
-        case "/help":        await handlers.help({ chatId }); break;
-        case "/live":        await handlers.live({ chatId }); break;
-        case "/fixtures":    await handlers.fixtures({ chatId, args }); break;
-        case "/standings":   await handlers.standings({ chatId, args }); break;
-        case "/odds":        await handlers.odds({ chatId, args }); break;
-        case "/betslip":     await handlers.betslip({ chatId, args }); break;
-        default:             await fallbackReply(chatId, text); break;
+        case "/start":     await handlers.start({ chatId }); break;
+        case "/help":      await handlers.help({ chatId }); break;
+        case "/live":      await handlers.live({ chatId }); break;
+        case "/fixtures":  await handlers.fixtures({ chatId, args }); break;
+        case "/standings": await handlers.standings({ chatId, args }); break;
+        case "/odds":      await handlers.odds({ chatId, args }); break;
+        case "/betslip":   await handlers.betslip({ chatId, args }); break;
+        default:           await fallbackReply(chatId, text); break;
       }
     } catch (err) {
       console.error("[Worker] loop error:", err.message);
