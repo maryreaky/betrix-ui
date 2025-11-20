@@ -1,5 +1,4 @@
 import Redis from "ioredis";
-import fetch from "node-fetch";
 
 const redisClient = new Redis(process.env.REDIS_URL);
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
