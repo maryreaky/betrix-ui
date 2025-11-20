@@ -19,13 +19,11 @@ app.post("/telegram", (req, res) => {
     jobId: `wh-${Date.now()}`,
     payload: update
   }));
-  res.sendStatus(200); // must always return 200 OK
+  res.sendStatus(200);
 });
 
-// Export the app so Render can mount
 export default app;
 
-// Bind to Render’s PORT
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
