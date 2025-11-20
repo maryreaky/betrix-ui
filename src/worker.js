@@ -24,7 +24,7 @@ const TZ = "Africa/Nairobi";
 const SAFE_CHUNK = Math.max(500, Number(TELEGRAM_SAFE_CHUNK || 3000));
 const HEADERS = { "x-apisports-key": API_FOOTBALL_KEY };
 const MAX_ROWS = 20;       // generic cap for list outputs
-const MAX_AGG_ROWS = 50;   // odds aggregate cap
+const MAX_AGG_ROWS = 15;   // odds aggregate cap
 
 // Common league name → ID mapping (normalized, case-insensitive)
 const LEAGUES = {
