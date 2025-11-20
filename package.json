@@ -1,6 +1,6 @@
 {
   "name": "betrix-ui",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "start": "node src/app.js"
