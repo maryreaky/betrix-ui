@@ -220,7 +220,10 @@ async function workerLoop() {
   while (true) {
     try {
       const jobRaw = await redis.lpop('telegram-jobs');
-      if (!jobRaw) { await new Promise(r => setTimeout(r, 500)); continue; }
+      if (!jobRaw) { 
+        await new Promise(r => setTimeout(r, 500)); 
+        continue; 
+      }
       const job = JSON.parse(jobRaw);
       const chatId = job?.payload?.message?.chat?.id;
       const text = job?.payload?.message?.text;
