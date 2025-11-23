@@ -1,0 +1,39 @@
+﻿# Node / build artifacts
+node_modules/
+dist/
+npm-debug.log
+package-lock.json
+
+# Environment and secrets
+.env
+.env.*
+*.env
+secrets.json
+*.secrets*
+config.local.*
+
+# Generated public config
+public/config.js
+
+# Local logs and temp files
+server-err.log
+server-out.log
+*.log
+
+# Editor/OS cruft
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.bak
+*.bak*
+
+# Keep src in repo (do NOT ignore src/)
+# src/
+
+# Generated files
+dist/
+build/
+*.log
+.DS_Store
+node_modules

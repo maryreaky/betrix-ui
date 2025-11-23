@@ -1,0 +1,147 @@
+﻿/* __STARTUP_PROBE__ - inserted by admin for diagnostics */
+console.log("SERVER STARTUP PROBE: pid=" + process.pid + " node=" + process.version + " cwd=" + process.cwd());
+try {
+  const mask = (k,v) => { if (k && (k.toLowerCase().includes("token") || k.toLowerCase().includes("secret") || k.toLowerCase().includes("password") || k.toLowerCase().includes("key"))) return "REDACTED"; return v; };
+  const important = ["BOT_TOKEN","DATABASE_URL","PORT"];
+  const envOut = important.map(k => k + "=" + (process.env[k] ? mask(k,process.env[k]) : "<missing>")).join(" | ");
+  console.log("ENV CHECK: " + envOut);
+} catch(e){ console.error("PROBE ENV ERR", e); }
+process.on('uncaughtException', (err) => { console.error("UNCAUGHT EXCEPTION:", err && err.stack ? err.stack : err); process.exitCode = 1; });
+process.on('unhandledRejection', (r) => { console.error("UNHANDLED REJECTION:", r && r.stack ? r.stack : r); process.exitCode = 1; });
+/* end probe */
+const express = require('express');
+const http = require('http');
+const path = require('path');
+const fs = require('fs');
+const app = express();
+
+// Deterministic health endpoints (both aliases)
+app.get('/_health', (req,res) => res.status(200).send('ok'));
+app.head('/_health', (req,res) => res.status(200).end());
+app.get('/health', (req,res) => res.status(200).send('ok'));
+app.head('/health', (req,res) => res.status(200).end());
+
+app.get('/', (req,res) => res.status(200).send('ok'));
+
+// Lightweight request logger for the first minute to capture probes
+let captureUntil = Date.now() + 60000;
+function log(...a) { if (Date.now() < captureUntil) console.log(...a); }
+app.use((req,res,next) => { log('REQ', req.method, req.url, 'headers:', JSON.stringify(req.headers)); next(); });
+
+// Webhook endpoint (safe placeholder)
+
+// Serve static after API
+const staticDir = path.join(__dirname, 'dist');
+if (fs.existsSync(staticDir)) {
+  app.use(express.static(staticDir, { index: false }));
+  app.get('*', (req,res,next) => {
+    const accept = req.headers.accept || '';
+    if (accept.includes('text/html')) {
+      const index = path.join(staticDir,'index.html');
+      if (fs.existsSync(index)) return res.sendFile(index);
+    }
+    next();
+  });
+}
+
+// Global handlers to keep logs on crash
+process.on('uncaughtException', (e) => console.error('UNCAUGHT', e && e.stack ? e.stack : e));
+process.on('unhandledRejection', (r) => console.error('UNHANDLED REJECTION', r));
+
+// Bind to PORT on 0.0.0.0
+const PORT = parseInt(process.env.PORT || '(process.env.PORT || 10000)', 10);
+const server = http.createServer(app);
+server.headersTimeout = 60000;
+server.requestTimeout = 60000;
+server.listen(PORT, '0.0.0.0', () => console.log('Server listening on 0.0.0.0:' + PORT));
+
+' + $marker + '
+// Diagnostic webhook handler replaced with production bot architecture
+// BOT ARCHITECTURE:
+//  - Immediate ACK to Telegram
+//  - Lightweight command router: /start, /menu, /vision, /help, /about
+//  - Vision command scaffold: `vision` subcommands: upload, summary, classify (placeholders for integration)
+//  - Simple in-memory user store placeholder (replace with DB or KV for production)
+//  - Background processing safe pattern with verbose logs for telemetry
+//  - Reads BOT_TOKEN and optional WEBHOOK_SECRET from env
+app.post('/telegram/webhook', express.json(), (req, res) => {
+  try {
+    // Optional: validate Telegram secret header
+    const expectedSecret = process.env.WEBHOOK_SECRET;
+    if (expectedSecret) {
+      const got = req.header('x-telegram-bot-api-secret-token');
+      if (!got || got !== expectedSecret) {
+        console.warn('telegram secret mismatch', { got });
+        return res.status(200).send('ok'); // ACK but ignore payload
+      }
+    }
+
+    // ACK immediately to prevent retries
+    res.status(200).send('ok');
+
+    // ---------- Lightweight user store (placeholder) ----------
+    // Replace this with a persistent store (Redis, Postgres, KV) for production.
+    global.__BETRIX_USERS__ = global.__BETRIX_USERS__ || new Map();
+
+    // ---------- Utils ----------
+    const token = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
+    const safeLog = (...a) => { console.log(...a); };
+
+    // ---------- Background worker for processing updates ----------
+    setImmediate(async () => {
+      try {
+        const update = req.body;
+        safeLog('process update', JSON.stringify({ type: update?.message ? 'message' : 'other', from: update?.message?.from?.id }));
+
+        // Support only message updates for now
+        const msg = update?.message;
+        if (!msg) {
+          safeLog('non-message update; ignoring');
+          return;
+        }
+
+        const chatId = msg.chat?.id;
+        const fromId = msg.from?.id;
+        if (!chatId || !fromId) {
+          safeLog('missing chatId/fromId; skipping');
+          return;
+        }
+
+        // Initialize user record
+        if (!global.__BETRIX_USERS__.has(fromId)) {
+          global.__BETRIX_USERS__.set(fromId, { chatId, createdAt: Date.now(), state: 'idle' });
+          safeLog('created user', fromId);
+        }
+        const user = global.__BETRIX_USERS__.get(fromId);
+
+        // Normalize incoming text
+        const text = (msg.text || '').trim();
+
+        // ---------- Command router ----------
+        const sendReply = async (chat_id, textBody, extra) => {
+          if (!token) { safeLog('BOT_TOKEN missing in env'); return; }
+          try {
+            const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(Object.assign({ chat_id, text: textBody }, extra || {}))
+            });
+            let json;
+        try {
+          const _txt = await resp.text().catch(e => "" + e);
+          try { json = JSON.parse(_txt); } catch (e2) { json = { parseError: true, text: _txt }; }
+        } catch (e3) {
+          json = { parseError: true, error: "" + e3 };
+        }
+        console.log('tg sendMessage', resp.status, JSON.stringify(json));
+      } catch (err) {
+        console.error('tg outgoing error', err && err.stack ? err.stack : err);
+      }
+    };
+  } catch (err) {
+    console.error('webhook handler top error', err && err.stack ? err.stack : err);
+    try { res.status(200).send('ok') } catch {}
+  }
+});
+
+

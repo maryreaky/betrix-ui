@@ -1,0 +1,52 @@
+modules = ["nodejs-20", "web", "bash"]
+[agent]
+expertMode = true
+
+[nix]
+channel = "stable-25_05"
+packages = ["redis"]
+
+[userenv]
+
+[userenv.shared]
+REDIS_URL = "redis://default:k5hVSqo106q0tTX9wbulgJPK4SiRc9UR@redis-14261.c282.east-us-mz.azure.cloud.redislabs.com:14261"
+PORT = "5000"
+API_FOOTBALL_BASE = "https://v3.football.api-sports.io"
+PAYPAL_MODE = "sandbox"
+TELEGRAM_SAFE_CHUNK = "2000"
+WEBHOOK_URL = "https://betrix-ui.onrender.com/telegram"
+SERVER_PRESENT = "true"
+SOFASCORE_API_BASE = "https://sofascore.p.rapidapi.com"
+PERFORM_API_BASE = "https://perform.p.rapidapi.com"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "BETRIX Server"
+
+[[workflows.workflow]]
+name = "BETRIX Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash start.sh"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[deployment]
+deploymentTarget = "vm"
+run = ["bash", "start.sh"]

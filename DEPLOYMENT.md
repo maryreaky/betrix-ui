@@ -1,0 +1,9 @@
+```markdown
+# Deployment Guide
+## Replit (Easiest)
+1. Click Publish button
+2. Get deployment URL
+3. Register Telegram webhook:
+```bash
+curl -X POST "https://api.telegram.org/bot$TOKEN/setWebhook" \
+  -d '{"url": "YOUR_REPLIT_URL/webhook"}'

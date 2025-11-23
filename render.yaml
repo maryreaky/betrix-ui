@@ -1,0 +1,10 @@
+﻿services:
+  - type: web
+    name: betrix-ui
+    env: node
+    buildCommand: npm install
+    startCommand: node src/index.js
+    plan: free
+    region: oregon
+    branch: main
+    repo: https://github.com/maryreaky/betrix-ui

@@ -1,0 +1,154 @@
+﻿name: CI Build Test Publish Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, fix/health-redis ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (if applicable)
+        run: npm run build || true
+      - name: Run smoke server and test health
+        env:
+          PORT: (process.env.PORT || (process.env.PORT || (process.env.PORT || 10000)))
+        run: |
+          set -euo pipefail
+          echo "Starting app (background) and saving logs to server.log"
+          if [ -f server.js ]; then
+            ENTRY="server.js"
+          elif [ -f src/index.js ]; then
+            ENTRY="src/index.js"
+          else
+            echo "No server.js or src/index.js found"; exit 1
+          fi
+
+          export HOST="0.0.0.0"
+          export PORT=""
+          echo "Using HOST=System.Management.Automation.Internal.Host.InternalHost PORT="
+
+          nohup env HOST="System.Management.Automation.Internal.Host.InternalHost" PORT="" node "" > server.log 2>&1 &
+          echo $! > server.pid
+
+          echo "---- server.log (initial 200 lines) ----"
+          head -n 200 server.log || true
+          echo "---- end initial log ----"
+
+          TIMEOUT=120
+          ATTEMPT=0
+          BACKOFF=1
+          while [  -lt  ]; do
+            ATTEMPT=
+            if curl -sSf --max-time 5 "http://System.Management.Automation.Internal.Host.InternalHost:/health" >/dev/null 2>&1; then
+              echo "Healthy after s"
+              break
+            fi
+            sleep 
+            if [  -lt 5 ]; then BACKOFF=; fi
+            if [  -eq  ]; then
+              echo "Health probe failed after s; dumping server.log"
+              tail -n 400 server.log || true
+              if [ -f server.pid ]; then kill  || true; fi
+              exit 1
+            fi
+          done
+  env:
+    PORT: (process.env.PORT || (process.env.PORT || (process.env.PORT || 10000)))
+  run: |
+    set -euo pipefail
+    echo "Starting app (background) and saving logs to server.log"
+    if [ -f server.js ]; then
+      ENTRY="server.js"
+    elif [ -f src/index.js ]; then
+      ENTRY="src/index.js"
+    else
+      echo "No server.js or src/index.js found"; exit 1
+    fi
+
+    export HOST="0.0.0.0"
+    export PORT="${PORT}"
+    echo "Using HOST=${HOST} PORT=${PORT}"
+
+    nohup env HOST="${HOST}" PORT="${PORT}" node "$ENTRY" > server.log 2>&1 &
+    echo $! > server.pid
+
+    echo "---- server.log (initial 200 lines) ----"
+    head -n 200 server.log || true
+    echo "---- end initial log ----"
+
+    TIMEOUT=120
+    ATTEMPT=0
+    BACKOFF=1
+    while [ $ATTEMPT -lt $TIMEOUT ]; do
+      ATTEMPT=$((ATTEMPT+1))
+      if curl -sSf --max-time 5 "http://${HOST}:${PORT}/health" >/dev/null 2>&1; then
+        echo "Healthy after ${ATTEMPT}s"
+        break
+      fi
+      sleep $BACKOFF
+      if [ $BACKOFF -lt 5 ]; then BACKOFF=$((BACKOFF+1)); fi
+      if [ $ATTEMPT -eq $TIMEOUT ]; then
+        echo "Health probe failed after ${TIMEOUT}s; dumping server.log"
+        tail -n 400 server.log || true
+        if [ -f server.pid ]; then kill $(cat server.pid) || true; fi
+        exit 1
+      fi
+    done
+
+      - name: Build and tag image
+        run: |
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          IMAGE_TAG="${{ env.IMAGE_NAME }}:${SHORT_SHA}"
+          docker build -t "${IMAGE_TAG}" -t "${{ env.IMAGE_NAME }}:latest" .
+          echo "IMAGE=${IMAGE_TAG}" >> $GITHUB_ENV
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image
+        run: |
+          docker push "${IMAGE}"
+          docker push "${{ env.IMAGE_NAME }}:latest"
+
+  deploy-ssh:
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to host via SSH (pull & restart)
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            IMAGE="${{ env.IMAGE }}"
+            docker pull $IMAGE
+            docker stop betrix-ui || true
+            docker rm -f betrix-ui || true
+            docker run -d --name betrix-ui \
+              -p (process.env.PORT || (process.env.PORT || (process.env.PORT || 10000))):(process.env.PORT || (process.env.PORT || (process.env.PORT || 10000))) \
+              --restart unless-stopped \
+              -e NODE_ENV=production \
+              -e REDIS_URL="${{ secrets.REDIS_URL }}" \
+              $IMAGE
+
+

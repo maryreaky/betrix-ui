@@ -1,0 +1,19 @@
+﻿name: Post-deploy smoke tests
+on:
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health check
+        run: curl -fsS https://betrix-ui.onrender.com/health
+      - name: Redis ping
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+        run: |
+          node -e "const Redis=require('ioredis');(async()=>{const r=new Redis(process.env.REDIS_URL);try{console.log(await r.ping());await r.quit()}catch(e){console.error(e);process.exit(1)}})();"
+      - name: TheOdds check
+        env:
+          THEODDS_API_KEY: ${{ secrets.THEODDS_API_KEY }}
+        run: |
+          curl -fsS "https://api.the-odds-api.com/v4/sports?apiKey=${{ THEODDS_API_KEY }}"

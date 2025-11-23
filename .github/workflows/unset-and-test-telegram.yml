@@ -1,0 +1,20 @@
+name: Unset and Test Telegram
+on:
+  workflow_dispatch:
+
+jobs:
+  unset_and_test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Unset webhook and show info
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        run: |
+          set -e
+          echo "getWebhookInfo:"
+          curl -s "https://api.telegram.org/bot${TELEGRAM_TOKEN}/getWebhookInfo" | tee getWebhookInfo.json
+          echo
+          echo "unset webhook (setWebhook?url=):"
+          curl -s "https://api.telegram.org/bot${TELEGRAM_TOKEN}/setWebhook?url=" | tee unset.json
+          echo
+          echo "Done. Check outputs above for Telegram API responses."

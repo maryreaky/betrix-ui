@@ -1,0 +1,68 @@
+name: set-telegram-webhook
+on:
+  workflow_dispatch:
+jobs:
+  set-webhook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug runner and check secret
+        run: |
+          echo "Runner: $(uname -a)"
+          echo "Node version:"
+          node -v || echo "node not found"
+          echo "GitHub Actions runner PATH: $PATH"
+          # The secret will be available only via env injection in the next step; show presence via actions expression
+          if [ -z "${{ secrets.TELEGRAM_BOT_TOKEN }}" ]; then
+            echo "ERROR: TELEGRAM_BOT_TOKEN secret is NOT set in repository secrets" && exit 2
+          else
+            echo "TELEGRAM_BOT_TOKEN secret appears set (value not shown)"
+          fi
+
+      - name: Prepare node script to set webhook
+        run: |
+          cat > set-webhook.js <<'NODEJS'
+const https = require('https');
+const url = process.env.SITE_URL + process.env.PATH + '?tokencheck=1';
+const token = process.env.TELEGRAM_BOT_TOKEN;
+if (!token) {
+  console.error('No TELEGRAM_BOT_TOKEN provided in env');
+  process.exit(3);
+}
+const webhookUrl = `${process.env.SITE_URL}${process.env.PATH}`;
+const apiUrl = `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`;
+console.error('Calling Telegram API:', apiUrl.replace(/(bot)[^/]+/,'$1<REDACTED>');
+https.get(apiUrl, (res) => {
+  let body = '';
+  res.on('data', (c) => body += c);
+  res.on('end', () => {
+    console.log('HTTP', res.statusCode);
+    try {
+      const j = JSON.parse(body);
+      console.log('RESPONSE_JSON:', JSON.stringify(j));
+      if (j && j.ok) {
+        console.log('Webhook set successfully');
+        process.exit(0);
+      } else {
+        console.error('Failed to set webhook:', body);
+        process.exit(4);
+      }
+    } catch (e) {
+      console.error('Non-JSON response:', body);
+      process.exit(5);
+    }
+  });
+}).on('error', (err) => {
+  console.error('Request error', err && err.message ? err.message : err);
+  process.exit(6);
+});
+NODEJS
+
+      - name: Run node script to set Telegram webhook
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          SITE_URL: https://betrix-ui.onrender.com
+          PATH: /webhook/telegram
+        run: |
+          node -v
+          node set-webhook.js
+

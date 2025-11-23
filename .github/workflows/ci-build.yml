@@ -1,0 +1,67 @@
+﻿name: CI (Docker node:22 published port + diagnostics)
+on:
+  workflow_dispatch: {}
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    env:
+      PORT: (process.env.PORT || (process.env.PORT || 10000))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pull node:22 image
+        run: docker pull node:22
+
+      - name: Run server inside node:22 container with published port and diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORKDIR=$GITHUB_WORKSPACE
+          PORT=${PORT:-(process.env.PORT || (process.env.PORT || 10000))}
+          COMMIT_SHA=${COMMIT_SHA:-$(git rev-parse --short HEAD)}
+          CONTAINER_NAME="betrix-smoke-pub-${GITHUB_RUN_ID:-local}"
+
+          echo "Starting container $CONTAINER_NAME with -p ${PORT}:${PORT} and HOST=0.0.0.0"
+          docker run --rm -d --name "$CONTAINER_NAME" -p ${PORT}:${PORT} -v "$WORKDIR":"$WORKDIR":rw -w "$WORKDIR" -e PORT=${PORT} -e HOST=0.0.0.0 node:22 \
+            bash -lc "npm ci --silent && if npm run | grep -q build; then npm run build; fi && echo starting server && PORT=${PORT} COMMIT_SHA=${COMMIT_SHA} HOST=0.0.0.0 node server.js > server.log 2>&1" || true
+
+          sleep 2
+
+          echo "---- docker ps (container) ----"
+          docker ps --filter name="$CONTAINER_NAME" || true
+
+          echo "---- container logs (tail 200) ----"
+          docker logs "$CONTAINER_NAME" --tail 200 || true
+
+          echo "---- inside-container: listening sockets ----"
+          docker exec "$CONTAINER_NAME" sh -c "ss -lntp 2>/dev/null || netstat -tulpen 2>/dev/null || true" || true
+
+          echo "---- inside-container: curl localhost:${PORT} ----"
+          docker exec "$CONTAINER_NAME" sh -c "curl --silent --fail -v http://localhost:${PORT} 2>&1 || echo inside-curl-failed" || true
+
+          echo "---- runner: curl http://localhost:${PORT} ----"
+          if curl --silent --fail "http://localhost:${PORT}" >/dev/null 2>&1; then
+            echo "runner curl succeeded"
+          else
+            echo "runner curl failed; dumping diagnostics"
+            echo "---- container logs (tail 1000) ----"
+            docker logs "$CONTAINER_NAME" --tail 1000 || true
+            echo "---- docker ps -a ----"
+            docker ps -a --filter name="$CONTAINER_NAME" || true
+            echo "---- docker top ----"
+            docker top "$CONTAINER_NAME" || true
+            echo "---- try to show server.log from container ----"
+            docker exec "$CONTAINER_NAME" sh -c 'if [ -f server.log ]; then echo "server.log exists; tail:"; tail -n 200 server.log; else echo "no server.log"; fi' || true
+            docker kill "$CONTAINER_NAME" 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "runner curl success; dumping container short logs and stopping container"
+          docker logs "$CONTAINER_NAME" --tail 200 || true
+          docker kill "$CONTAINER_NAME" 2>/dev/null || true
